@@ -1,8 +1,8 @@
-# TTJ JSON参照形式 v0.1.0
+# TTJ JSON参照形式 v1.0.0
 
 - [定義] 以下は項目ごとの記入方法と例であり、ラベルはその行だけに適用する。
 - [必須] 作業規則は [規格本文](specification.md) に従う。
-- [必須] `protocol: string`：独立したJSON文書のルートに `"TTJ/0.1.0"` を記載する。
+- [必須] `protocol: string`：独立したJSON文書のルートに `"TTJ/1.0.0"` を記載する。
 - [定義] `protocol` の値は規格名と版を1項目で識別する。
 - [定義] 同じ文書の子レコードは同じ版として扱い、各レコードへの転記は不要。
 - [任意] `protocol` は生成側で補完し、以下の項目一覧では共通の記載を繰り返さない。
@@ -12,6 +12,7 @@
 - [定義] `criteria` はTask・Jobの完了を確認する条件の一覧。
 - [必須] 新規作成時の作業状態は、未指定でも `todo`。
 - [定義] 任意の一覧を省略した新規レコードは、その一覧を空として扱う。
+  - [定義] Jobの `assignee` は例外とし、第4節の担当継承に従う。
 - [必須] 更新で省略した項目は既存値を維持し、空にする場合は明示する。
 - [定義] `project`・`task`・`job`・`target` 等の参照フィールドは対象のIDを表す。
 - [推奨] フィールド名はできるだけ1単語とし、同じ意味の別名を増やさない。
@@ -26,7 +27,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "study-meetup",
   "name": "勉強会の運営"
 }
@@ -46,7 +47,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "prepare-invitation",
   "project": "study-meetup",
   "objective": "勉強会の案内を用意する",
@@ -71,7 +72,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "create-invitation",
   "task": "prepare-invitation",
   "objective": "案内文を完成させる",
@@ -95,7 +96,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "write-invitation",
   "objective": "必要事項を揃えた案内文を作る",
   "criteria": [
@@ -106,7 +107,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "review-invitation",
   "objective": "案内文の記載が正しいことを確認する",
   "criteria": [
@@ -134,7 +135,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "create-invitation",
   "assignee": [
     "llm-drafting-context"
@@ -154,7 +155,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "ticket": {
     "id": "create-invitation",
     "status": "completed"
@@ -181,7 +182,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "publish-invitation",
   "depends": [
     "create-invitation",
@@ -198,7 +199,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "status": "waiting",
   "resume": "承認者から確認結果を受け取る"
 }
@@ -206,12 +207,12 @@
 
 ## 8. 課題への対応
 
-- [必須] 元Ticketを `blocked` にし、`handoffs` に課題と再開に必要な確認を書く。
+- [必須] 元Ticketは保留中・終端を除いて `blocked` にし、`handoffs` に課題と再開に必要な確認を書く。
 - [例] 次は会場情報が未確定で止まったTicketの抜粋。
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "create-invitation",
   "status": "blocked",
   "handoffs": [
@@ -228,7 +229,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "resolve-venue",
   "task": "prepare-invitation",
   "objective": "案内に必要な会場情報を確定させる",
@@ -244,7 +245,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "confirm-venue",
   "objective": "会場と必要な案内情報を確定する",
   "criteria": [
@@ -266,7 +267,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "handoffs": [
     "判明：日時は確認済み。申込方法は再確認が必要。",
     "失敗：過去の申込先を確認 → 廃止済み。再試行：新しい申込先を受領した場合だけ。",
@@ -285,7 +286,7 @@
 - [定義] 知識の `status` は `active`・`supersed` の2値。
 - [必須] 新規記録は未指定でも `active` とし、通常は `active` だけを参照する。
 - [定義] 将来の予定も、その予定を現在の知識として保持するため `active`。
-- [任意] 採用中の旧知識を置換する場合だけ `supersedes` に旧知識のIDを書く。
+- [必須] 採用中の旧知識を置換する場合は `supersedes` に同じProjectの旧知識のIDを書く。
 - [必須] 置換時は旧記録の `supersed` と新記録の `active` を同時確定する。
 - [必須] 振り返り時は過去の内容・根拠・採用理由も参照できる。
 - [必須] 後継がない知識を使わなくなった場合も、理由を履歴に残して `supersed` にする。
@@ -294,7 +295,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "knowledge": [
     {
       "id": "invitation-short-form",
@@ -328,7 +329,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "review-invitation",
   "status": "completed",
   "result": "invitation-review-first-run"
@@ -351,7 +352,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "invitation-draft-first-run",
   "job": "write-invitation",
   "actor": [
@@ -369,7 +370,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "invitation-review-first-run",
   "job": "review-invitation",
   "actor": [
@@ -392,7 +393,7 @@
 
 ```json
 {
-  "protocol": "TTJ/0.1.0",
+  "protocol": "TTJ/1.0.0",
   "id": "invitation-draft-started",
   "operation": "start-invitation-draft",
   "target": "write-invitation",
