@@ -1,6 +1,6 @@
 # TTJ 1.1.0 仕様変更概要・データモデル差分・状態遷移
 
-本文書は、TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への仕様改定における変更概要（提出物 A）、データモデル差分（提出物 C）、および状態遷移の整理（提出物 D）をまとめたものである。規範的な作業規則は [規格本文](../skills/ttj/references/specification.md) および [JSON参照形式](../skills/ttj/references/json-format.md) を正本とする。
+本文書は、TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への仕様改定における変更概要（提出物 A）、データモデル差分（提出物 C）、および状態遷移の整理（提出物 D）をまとめたものである。規範的な作業規則は [規格本文](../skills/ttj/references/specification.md) および [JSON参照形式](../skills/ttj/references/json-format.md) を正本とし、場面別の具体的な JSON パターンは [代表ユースケースとサンプルパターン](../skills/ttj/references/use-cases.md) を参照する。
 
 ---
 
@@ -187,12 +187,12 @@ active (session=S1, run=null|run-cur, gen=g, run_seq=s)
 | 対象 Ticket / 過去 Run の状態 | Handoff 参照 | 巻き取り / 取得可否 | 条件・補足 |
 |---|---|---|---|
 | 未割当（再取得可能な非 `active` Claim、**かつ過去 Run に `alive`/`unknown`/安全未確認なし**） | 可 | **可** | 終端 Ticket・巻き取り移管済み Ticket は不可。`paused` は明示解除が必要 |
-| 稼働中（`alive` の Run が残存。Claim 失効済み含む） | 可 | **不可** | 稼働中 Session からの奪取・競合開始を禁止（UC-17） |
+| 稼働中（`alive` の Run が残存。Claim 失効済み含む） | 可 | **不可** | 稼働中 Session からの奪取・競合開始を禁止 |
 | `waiting` かつ稼働中（`status: waiting` & `activity: alive`） | 可 | **不可** | 待機中でも Session 生存中は奪取禁止 |
-| 停止確認済み（全過去 Run が `stopped` かつ `active_run_id == null`、`waiting` 中含む） | 可 | **安全条件成立かつ `(expected_generation, expected_run_seq)` 一致時のみ可** | 確認後に同世代で別 Run が開始・終了し `run_seq` が変化した場合は拒否。失効前開始済み操作・副作用残存の疑いがあれば保留（UC-18, UC-25, UC-S02, UC-S03） |
-| 状態不明（`unknown` の Run が残存。Heartbeat 途絶・Claim 失効後停止未確認含む） | 可 | **不可** | 停止未確認のまま巻き取り禁止（UC-19） |
+| 停止確認済み（全過去 Run が `stopped` かつ `active_run_id == null`、`waiting` 中含む） | 可 | **安全条件成立かつ `(expected_generation, expected_run_seq)` 一致時のみ可** | 確認後に同世代で別 Run が開始・終了し `run_seq` が変化した場合は拒否。失効前開始済み操作・副作用残存の疑いがあれば保留 |
+| 状態不明（`unknown` の Run が残存。Heartbeat 途絶・Claim 失効後停止未確認含む） | 可 | **不可** | 停止未確認のまま巻き取り禁止 |
 
-**新 Ticket 巻き取りの単一原子確定契約と競合線形化（UC-20, UC-S02）**：
+**新 Ticket 巻き取りの単一原子確定契約と競合線形化**：
 1. **公開契約は単一の原子的確定のみ**：未確定の中間予約状態を外部公開せず、内部実装が複数段階書込みを用いる場合も途中段階を読み取り・実行開始・成功応答から完全に不可視とする。
 2. **一体確定する範囲**：(a) 旧 Ticket `tkt-1` を `canceled`（`cancel_reason` 必須・`owner_id` 不変）、(b) 旧 Claim を `revoked`（`generation + 1`, 再取得永久禁止、二重失効なし）、(c) 後続 Ticket `tkt-2` とその初期 Claim（確定時点で生存する適格 Session が一体取得するなら `unassigned(gen=1) → active(gen=2)`、終了済み Session には決して `active` Claim を付与せず `unassigned(gen=1)` または未確定拒否；確定済み世代は非巻戻し）、(d) 再送照合用の永続結果（`operation_id`・認可主体・実質パラメータ・確定結果）。
 3. **障害前後の再送と衝突**：
@@ -211,10 +211,10 @@ active (session=S1, run=null|run-cur, gen=g, run_seq=s)
   1. **Run 起因更新**：認証済み Session + `active` Claim（`current_ticket_id` 一致）+ **`claim.active_run_id != null && claim.active_run_id == run_id`** + 鮮度/スロットインスタンス検証（`active_run_id == null` の空き枠への閉じた旧 Run 名義更新は常に拒否）。
   2. **Run 非紐付け Session 更新**：認証済み Session + `active` Claim（`current_ticket_id` 一致）+ 閉じた `run_id` 名義でないこと + 鮮度/スロットインスタンス検証。
   3. **管理再生成（Claim 不要）**：認可済み管理主体が、読み取った永続正本 `source_revision` が**書込み時点でも永続正本の現行最新であることを検証**した上で閲覧キャッシュのみ再構築（実行権非付与・正本無変更）。
-- **消失横断・同一正本版上書き防止**：`source_revision` が古い更新を拒否するだけでなく、同じ `source_revision` のままキャッシュ消失→新スロット再生成が起きた後に消失前スナップショットの更新（より大きい `revision`）が遅れて届いても、スロットインスタンス／世代照合により新スロットを上書きせず確実に拒否する（UC-22）。
-- **並列実行非阻害**：同一 Task 内の独立した複数 Ticket の並列稼働を単一 Handoff スロットで遮らない（UC-24）。
+- **消失横断・同一正本版上書き防止**：`source_revision` が古い更新を拒否するだけでなく、同じ `source_revision` のままキャッシュ消失→新スロット再生成が起きた後に消失前スナップショットの更新（より大きい `revision`）が遅れて届いても、スロットインスタンス／世代照合により新スロットを上書きせず確実に拒否する。
+- **並列実行非阻害**：同一 Task 内の独立した複数 Ticket の並列稼働を単一 Handoff スロットで遮らない。
 
 ### D.8 完了依存グラフの辺と逆向き競合登録の確定境界
 
 - **辺の定義**：完了依存グラフに含める辺は「非終端 Ticket の `depends`」と「表示上の状態（`waiting`・`paused`・`blocked`・停止/移譲中）によらず、非終端 Ticket・Job が保持するすべての未解決 `Run.wait`」のみ。解消済み・解除済みの `Run.wait`（`resolved` 記録等）は履歴に残しつつ辺から外すため、待機解消後の逆向き登録は許可される。
-- **競合確定境界**：循環を閉じ得る逆向き登録（`depends` と `Run.wait` の混在を含む）が並行発行された場合、原子的な循環検証・確定境界により高々一方のみ成功し、他方は循環依存として拒否される（UC-11）。
+- **競合確定境界**：循環を閉じ得る逆向き登録（`depends` と `Run.wait` の混在を含む）が並行発行された場合、原子的な循環検証・確定境界により高々一方のみ成功し、他方は循環依存として拒否される。

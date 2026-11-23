@@ -7,7 +7,7 @@ metadata:
 
 # TTJ
 
-- [必須] **適用**：[規格本文](references/specification.md) を正本とし、[JSON参照形式](references/json-format.md) で記入項目を確認する。
+- [必須] **適用**：[規格本文](references/specification.md) を正本とし、[JSON参照形式](references/json-format.md) で記入項目を、[代表ユースケースとサンプルパターン](references/use-cases.md) で場面別の状態遷移と JSON パターンを確認する。
   - [禁止] Worker 種別（人間・Bot・AI 等）で業務ロジックや状態遷移を分岐させる、または `owner_type` を必須にする。
   - [禁止] 特定の Agent・Bot・オーケストレーターへの依存を TTJ Core の規則へ持ち込む。
   - [必須] ラベルはその行だけに適用し、配下の項目へ継承しない。

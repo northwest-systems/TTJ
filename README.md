@@ -44,12 +44,12 @@ Project（id: pj-* / 名前を持つ継続領域・長期知識 knowledge）
   - [必須] Handoff の閲覧権限と実行権限を分離し、Handoff 消失でも正式履歴を失わず、無関係な Ticket の並列実行を遮らない。
 - [定義] **[規格本文](skills/ttj/references/specification.md)**：TTJ v1.1.0 作業規則の正本。
 - [定義] **[JSON参照形式](skills/ttj/references/json-format.md)**：項目ごとの記入方法と例。
+- [定義] **[代表ユースケースとサンプルパターン（UC-01〜UC-10）](skills/ttj/references/use-cases.md)**：代表的な10場面における状態遷移と JSON サンプルパターン。
 - [定義] **[TTJ Skill](skills/ttj/SKILL.md)**：LLM が規格を適用する手順。
   - [任意] `skills/ttj` 全体を利用環境の Skill 配置先へコピーする。
   - [必須] コピーする場合は参照文書も含める。
   - [禁止] Skill 単独で永続化・排他・外部副作用防止を保証したと称する。
 - [定義] **[v1.1.0 変更概要・モデル差分・状態遷移](docs/migration-1.1.0.md)**：1.0.0 からの変更点、データモデル差分、状態遷移の詳細整理。
-- [定義] **[受け入れテスト仕様（UC-01〜UC-27）](docs/acceptance-tests.md)**：適合確認と禁止事項 1〜18 の検証ケース。
 - [例] **[Orca Adapter 補足設計](docs/orca-adapter.md)**：TTJ Core 非依存を保った外部オーケストレーター連携設計例（非規範）。
 - [定義] **ライセンス**：[Apache-2.0](LICENSE)。
 - [定義] **[運用手順](RUNBOOK.md)**：PR 経由の変更とリリースの検証・公開手順。

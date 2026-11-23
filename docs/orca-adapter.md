@@ -119,4 +119,4 @@ TTJ Core（`skills/ttj/` 配下の仕様・JSON 参照形式・Skill および C
 - **別オーケストレーター／CI 基盤**：GitHub Actions、Temporal、社内ワークフローエンジン等に対し、各自の薄い Adapter と `ExternalBinding` を実装して TTJ Core へ接続する。
 - **単体 LLM / CLI 運用**：`skills/ttj/` をそのまま利用環境へ配置し、単一または複数の CLI セッション間で TTJ 1.1.0 規則に従った計画・実行・引き継ぎを行う。
 
-いずれの環境でも、TTJ Core のデータモデル、状態遷移、禁止事項 1〜18、および受け入れテスト UC-01〜UC-27・UC-S01〜UC-S06 は Orca なしで同一に成立する。
+いずれの環境でも、TTJ Core のデータモデル、状態遷移、および禁止事項 1〜18 は Orca なしで同一に成立する。
