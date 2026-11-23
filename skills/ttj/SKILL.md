@@ -17,14 +17,15 @@ metadata:
 ## 計画
 
 - [必須] **目標と主体確認**：Project・Task・Worker を確認する。
-  - [必須] Project の `id`・`name` と Worker の `id`・`name` で対象と作業主体を識別できるようにする。
+  - [必須] Project の `id`（接頭辞 `pj-`）・`name` と Worker の `id`・`name` で対象と作業主体を識別できるようにする。
+  - [必須] Project・Task・Ticket・Job・Run の ID 接頭辞をそれぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-` に統一する。
   - [必須] 既存の作業と採用中（`active`）の知識を先に読み、結果を左右する不足だけを質問する。
   - [禁止] Project をリポジトリに限定する。
 - [必須] **記入**：Task・Ticket・Job すべての `objective` に「達成したいこと」を書く。
   - [必須] Task・Job の `criteria` に確認可能な条件を1件以上書く。
   - [任意] 期限が指定されている場合だけ、Task の `deadline` にタイムゾーン付き ISO 8601 日時を記録する。
   - [禁止] 未指定の期限を作る、または期限を Ticket・Job へ転記する。
-  - [必須] Ticket には存在する単一の `Worker.id` を `owner_id` に指定し、`jobs` に Job の ID を実行順に並べる。
+  - [必須] Ticket（`tkt-*`）には存在する単一の `Worker.id` を `owner_id` に指定し、`jobs` に Job の ID（`job-*`）を実行順に並べる。
   - [禁止] Ticket に複数 Owner を設定する、Job ごとに個別 Owner を設定する、旧 `assignee` や `Ticket.handoffs` を使う、Ticket 独自の `criteria` を設ける。
   - [任意] 手順が不足する場合だけ Job の `instructions` を補う。
   - [禁止] Job に複雑なワークフロー構造・子 Job・待機制御構造・独立 `Request` オブジェクト・種別分類を追加する。
@@ -103,5 +104,5 @@ metadata:
   - [必須] 状態は `active`・`supersed` の2値（v1.0.0 の綴りを維持）とし、新規記録は未指定でも `active` にする。
   - [必須] 予定も現在の知識として `active` に記録し、通常は `active` だけを参照し、振り返り・再発障害確認では `supersed` も読む。
   - [必須] 使わなくなった知識は理由を残して `supersed` にし、訂正は `supersedes` 付きの新規記録とする。
-- [必須] **点検**：単一不変 `owner_id`、開始前/開始後の照合分離と並行再試行の古い前提拒否、Job 単独中止の即時無効化と後続開始ガード分離、試行安全閉鎖、`status`/`result` 分離、未解決待機辺（保留/一時障害含む）の循環禁止、外部フェンシング、単一原子巻き取り契約と競合線形化、`active` Claim 付き未着手 Ticket への依存評価、Handoff 更新3経路分離と同一正本版上書き防止、禁止事項1〜18、Worker 非依存性を確認する。
+- [必須] **点検**：ID 接頭辞（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`）、単一不変 `owner_id`、開始前/開始後の照合分離と並行再試行の古い前提拒否、Job 単独中止の即時無効化と後続開始ガード分離、試行安全閉鎖、`status`/`result` 分離、未解決待機辺（保留/一時障害含む）の循環禁止、外部フェンシング、単一原子巻き取り契約と競合線形化、`active` Claim 付き未着手 Ticket への依存評価、Handoff 更新3経路分離と同一正本版上書き防止、禁止事項1〜18、Worker 非依存性を確認する。
   - [必須] 計画・実行済みの事実・管理情報・未確認事項を分けて報告する。

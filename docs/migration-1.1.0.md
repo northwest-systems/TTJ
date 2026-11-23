@@ -20,7 +20,8 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 | 区分 | 項目 | TTJ 1.0.0 | TTJ 1.1.0 | 変更理由 |
 |---|---|---|---|---|
-| 変更 | プロトコル版 | `protocol: "TTJ/1.0.0"` | `protocol: "TTJ/1.1.0"` | 非互換の変更（`assignee`・`Ticket.handoffs` 廃止、`Worker`/`Session`/`Execution Claim` 追加）を含むマイナー改定（合意済み 1.1.0 方針） |
+| 変更 | プロトコル版 | `protocol: "TTJ/1.0.0"` | `protocol: "TTJ/1.1.0"` | 非互換の変更（`assignee`・`Ticket.handoffs` 廃止、`Worker`/`Session`/`Execution Claim` 追加、ID 接頭辞必須化）を含むマイナー改定（合意済み 1.1.0 方針） |
+| 追加/変更 | エンティティ ID 接頭辞 | 形式任意（例：`study-meetup`, `prepare-invitation` 等） | Project: `pj-`、Task: `tsk-`、Ticket: `tkt-`、Job: `job-`、Run: `run-` の5種類の接頭辞を必須化 | ID 文字列だけでエンティティ種別を一意に判別し、参照誤りやログ・監査追跡時の曖昧さを防ぐため |
 | 変更 | フィールド命名方針 | 1単語推奨 | 1単語推奨＋意味のある連結名（`owner_id`, `worker_id`, `task_id`, `ticket_id`, `session_id`, `active_run_id`, `run_seq`, `current_ticket_id`, `active_session_id`, `current_job_id`, `source_revision`, `cancel_reason`）を統一採用。既存 `project`/`task`/`job`/`target` は維持 | 参照先と識別子の意味を曖昧なく表現し、仕様・JSON・SKILL 間の表記揺れを防ぐため |
 | 追加 | `Worker` | 未定義（`assignee` の任意識別値） | 正式定義（不変 `id`・変更可能 `name`）。種別分類・`owner_type` 禁止 | 作業の責任主体を一意化しつつ、人間・Bot・AI 非依存を徹底するため |
 | 追加 | `Session` | 未定義 | 正式定義（`id`・`worker_id`・`started`・`ended`） | 責任主体（Worker）と実行単位（Session）を分離し、同一 Worker の複数 Session を個別識別するため |
@@ -38,10 +39,10 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 1. **巻き取り公開契約の一本化（ATOM 設計判断：単一の原子的確定）**
    - 新 Ticket へ移す巻き取りの公開契約を**単一の原子的確定**へ一本化し、未確定の中間予約状態を外部公開する 2 段階公開手順は廃止した。
-   - 内部実装で複数段階の書込みや永続予約を用いる場合であっても、途中状態を読み取り・実行開始・成功応答から一切観測できないことを準拠条件とし、(1) 旧 Ticket `T1` 終端化（`canceled` + `cancel_reason`）・(2) 旧 Claim 失効（`revoked`, `generation + 1`, 再取得永久禁止）・(3) 後続 Ticket `T2` とその初期 Claim・(4) 同一操作再送用の永続結果（`operation_id`・認可主体・実質パラメータ・確定結果）を一体で確定する。
+   - 内部実装で複数段階の書込みや永続予約を用いる場合であっても、途中状態を読み取り・実行開始・成功応答から一切観測できないことを準拠条件とし、(1) 旧 Ticket `tkt-1` 終端化（`canceled` + `cancel_reason`）・(2) 旧 Claim 失効（`revoked`, `generation + 1`, 再取得永久禁止）・(3) 後続 Ticket `tkt-2` とその初期 Claim・(4) 同一操作再送用の永続結果（`operation_id`・認可主体・実質パラメータ・確定結果）を一体で確定する。
    - これにより、親 Task 中止および旧 Job 証拠確定との競合は正本確定順で明確に線形化され、確定後・応答喪失後の同一要求再送は冪等返却、同一 `operation_id` の主体/パラメータ不一致は拒否、未確定（確定前失敗）後の再送は現行正本前提を再検証、終了済み Session への新 `active` Claim 付与禁止および確定済み世代の非巻戻しが一貫して成立する。
 2. **1.0.0 規則の維持：Job 単独中止時の即時試行権限無効化と「停止 *または* 安全条件」の分離**
-   - 1.0.0 規格（§6 L185）どおり、Job 単独中止の確定と同時に結合中 `Run` `R1` の試行権限を即座に無効化・閉鎖（効果確定側で即時拒否可能、`active_run_id = null`, `run_seq + 1`）し停止要求を発行する（Ticket 全体の Claim 失効は不要）。
+   - 1.0.0 規格（§6 L185）どおり、Job 単独中止の確定と同時に結合中 `Run` `run-1` の試行権限を即座に無効化・閉鎖（効果確定側で即時拒否可能、`active_run_id = null`, `run_seq + 1`）し停止要求を発行する（Ticket 全体の Claim 失効は不要）。
    - その上で、後続 Job 開始前の「停止確認 **または** 安全条件」（1.0.0 L246）および同一計画通常再試行の「停止確認 **または** 同一 Claim 内安全閉鎖」（1.0.0 L244）を即時無効化と分離して維持する。別 Session・別 Worker への**巻き取り**では原典 1.1.0 要件どおり「全過去 Run の `stopped` 確認 **かつ** 安全条件」の両方必須を維持する。
 3. **`active` Claim 付き未着手 Ticket への依存評価適用**
    - 依存評価の認可経路を未割当 Ticket だけでなく、`active` Claim を持つ未着手 Ticket（現在 Job 未着手かつ `active_run_id == null`）にも適用することで、前提待ち中に Owner の Session が Claim を先行取得した場合でも前提完了時に `waiting → todo`（前提中止時は `waiting → blocked`）へ確実に解除できるようにした（依存解除のみを行い Run は自動開始しない）。
@@ -50,19 +51,20 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 5. **完了依存グラフの辺と保留・一時障害中の未解決待機**
    - 完了依存グラフに含める辺を「非終端 Ticket の `depends`」と「表示状態（`waiting`/`paused`/`blocked`/停止・移譲中）によらず非終端 Ticket・Job が保持するすべての未解決 `Run.wait`」とし、解消済み・解除済みの `Run.wait` は履歴に保持しつつ辺から除外した。逆向き競合登録は原子的な循環検証境界で高々一方のみ成功する。
 6. **Run 開始前照合での古い前提（並行再試行）の拒否**
-   - 開始前照合に `expected_run_seq`（または前回試行基準）と現行 `claim.run_seq` の一致を含めることで、同じ前回 Run `R1` を前提に同時発行された並行再試行のうち先着 `R2` が開始・終了して `active_run_id == null` へ戻った後に届いた後着要求も古い前提として拒否し、`R2` を前提に取り直した再試行のみ許可する。
+   - 開始前照合に `expected_run_seq`（または前回試行基準）と現行 `claim.run_seq` の一致を含めることで、同じ前回 Run `run-1` を前提に同時発行された並行再試行のうち先着 `run-2` が開始・終了して `active_run_id == null` へ戻った後に届いた後着要求も古い前提として拒否し、`run-2` を前提に取り直した再試行のみ許可する。
 
 ### A.4 既存実装（TTJCore 等）への影響
 
 - **破壊的変更（スキーマ・バリデーション）**：
   - `protocol` の受理版を `"TTJ/1.1.0"` へ更新。
+  - Project / Task / Ticket / Job / Run の ID 接頭辞（`pj-` / `tsk-` / `tkt-` / `job-` / `run-`）の必須バリデーション追加。
   - `Worker`・`Session`・`Execution Claim`（一意キー：`ticket_id`、`active_run_id`・`generation` 初期値 `1`・`run_seq` 初期値 `0`・確定済み `takeover` 含む）の追加と参照整合性検証。
   - `Ticket.assignee`・`Job.assignee`・`Ticket.handoffs` の廃止と、`Ticket.owner_id`（必須・不変）・`Ticket.refs`・`Ticket.cancel_reason`（`canceled` 時必須）・`Ticket.artifacts` の追加。
   - `Run.actor: array<string>` から `Run.owner_id` + `Run.session_id` + `Run.ticket_id` + `Run.wait`（`resolved` 含む）への変更、`started`（実作業開始確定時必須、未起動予約・未起動閉鎖時省略可）および終了時 `result` の条件付き必須化。
   - `Handoff` を Ticket 配列から Task 所属単一スロット（`revision`・永続正本基準版 `source_revision`・`source_generation` 付き）へ移行。
 - **排他・実行制御・外部フェンシング層への影響**：
   - Run 開始前照合（`active_run_id == null` ＋ `expected_run_seq` 一致＋原子的結合＋`run_seq +1`）と開始後照合（`active_run_id == run.id` 非 `null` 一致）を分離実装する。
-  - Job 単独中止確定と同時の `R1` 試行権限即時無効化（効果確定側即時拒否可能＋`active_run_id = null`＋`run_seq +1`）と、後続 Job 開始前の停止/安全判定を分離実装する。
+  - Job 単独中止確定と同時の `run-1` 試行権限即時無効化（効果確定側即時拒否可能＋`active_run_id = null`＋`run_seq +1`）と、後続 Job 開始前の停止/安全判定を分離実装する。
   - 新 Ticket 巻き取りを外部から単一の原子的確定として観測できるよう実装し（途中状態不可視、確定後再送冪等・主体/パラメータ不一致拒否・親 Task 中止/旧 Job 証拠確定との線形化・終了済み Session への `active` Claim 非付与・世代非巻戻し）、巻き取りと Run 開始・閉鎖を `(expected_generation, expected_run_seq)` で同一競合境界化する。
   - Handoff 更新の 3 経路分離、および同一 `source_revision` でのスロット消失・再生成をまたぐ旧更新の拒否（内部スロットインスタンス照合等）を実装する。
   - 副作用を防ぐ必要がある操作では、外部ゲートウェイ／効果確定側でも失効済み権限（旧 `generation`・失効 Claim・閉じた同世代 `Run.id`・Job 単独中止で即時無効化された `Run.id`）を必須拒否し、失効前開始済み操作が残存し得る場合は安全確認完了まで後続実行を保留する。
@@ -71,7 +73,7 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 1. **安全条件（副作用残存なし）の検証インターフェース**：副作用確認・失効前開始済み外部操作の完了確認・環境復旧完了の具体的証明方式（チェックリスト・外部ヘルスチェック・署名付き確認記録等）は運用・Adapter 実装側で具体化する。
 2. **Ticket テンプレートおよび標準 Job 列の交換形式**：必須機能としてのテンプレート・標準 Job 列の JSON 交換スキーマ標準化が必要になった場合、後続マイナー版で任意拡張として検討する。
-3. **1.0.0 データの移行ツール**：既存 1.0.0 レコード（複数 `assignee` を含む Ticket や `Ticket.handoffs`）を 1.1.0 へ機械変換する場合の分割・移行ルールは、移行対象ストレージ実装ごとに定義する。
+3. **1.0.0 データの移行ツール**：既存 1.0.0 レコード（接頭辞なしの ID、複数 `assignee` を含む Ticket や `Ticket.handoffs`）を 1.1.0（`pj-` / `tsk-` / `tkt-` / `job-` / `run-` 接頭辞付き ID 等）へ機械変換する場合の分割・移行ルールは、移行対象ストレージ実装ごとに定義する。
 
 ---
 
@@ -83,11 +85,11 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 |---|---|---|---|
 | **Worker** | （未定義） | **新設**：`id`（必須・不変）, `name`（必須・変更可）。種別・`owner_type` 禁止 | 作業の責任主体。認証・環境設定は外部 Adapter 側 |
 | **Session** | （未定義） | **新設**：`id`（必須）, `worker_id`（必須）, `started`（任意）, `ended`（任意） | 実際の作業実行を識別する単位。同一 Worker が複数保持可 |
-| **Project** | `id`, `name`, `knowledge`（`id`, `status`: `active`/`supersed`, `content`, `basis`, `supersedes`） | **変更なし**（`active`/`supersed` 綴り完全維持） | 継続領域と長期知識の正本 |
-| **Task** | `id`, `project`, `objective`, `criteria`, `deadline`, `status`, `resume` | **維持＋責務明確化**：長寿命成果目標。`status`（Run を持たない Task レベルの計画内 `waiting` 含む）・`resume` 維持。揮発性単一スロット `Handoff` が所属（別レコード時は `Handoff.task_id` で結合） | 複数 Ticket の統括・結果集約・最終達成判定 |
-| **Ticket** | `id`, `task`, `objective`, `jobs`, `assignee`, `depends`, `handoffs`, `status`, `resume` | **追加**：`owner_id`（必須・不変）, `refs`（任意：情報共有参照）, `artifacts`（任意）, `cancel_reason`（**条件付き必須：`canceled` 時必須**）<br>**維持**：`status`, `depends`, `resume`<br>**廃止**：`assignee`, `handoffs` | 単一 Worker 担当・一方向進行の短命作業単位 |
-| **Job** | `id`, `objective`, `criteria`, `instructions`, `assignee`, `status`, `result`, `resume` | **維持**：`id`, `objective`, `criteria`, `instructions`, `status`, `resume`<br>**明確化**：`result`（`status` と分離した業務判定・エラー結果）, `artifacts`（任意）<br>**廃止**：`assignee` | `criteria` で完了判定できる最小実行単位。複雑な構造を持たない |
-| **Run** | `id`, `job`, `actor[]`, `started`, `ended`, `result`, `generation`, `activity`, `observed` | **追加**：`ticket_id`（必須）, `owner_id`（必須）, `session_id`（必須）, `wait`（任意：`job_id`, `target`, `condition`, `since`, `resume_point`, `timeout`, `resolved`）<br>**廃止**：`actor[]`<br>**明確化**：`generation`（必須・正整数）, `started`（**条件付き必須：実作業開始確定時必須、`unstarted` 予約または未起動閉鎖 `unstarted → stopped` では省略可**）, `result`（**条件付き必須：終了確定時必須**） | Job の1回の実行試行（Execution / Attempt）および待機・観測の正本 |
+| **Project** | `id`, `name`, `knowledge`（`id`, `status`: `active`/`supersed`, `content`, `basis`, `supersedes`） | **変更**：`id` に接頭辞 `pj-` を必須化（`knowledge` の `active`/`supersed` 綴りは完全維持） | 継続領域と長期知識の正本 |
+| **Task** | `id`, `project`, `objective`, `criteria`, `deadline`, `status`, `resume` | **維持＋責務明確化**：`id` に接頭辞 `tsk-` を必須化。長寿命成果目標。`status`（Run を持たない Task レベルの計画内 `waiting` 含む）・`resume` 維持。揮発性単一スロット `Handoff` が所属（別レコード時は `Handoff.task_id` で結合） | 複数 Ticket の統括・結果集約・最終達成判定 |
+| **Ticket** | `id`, `task`, `objective`, `jobs`, `assignee`, `depends`, `handoffs`, `status`, `resume` | **変更**：`id` に接頭辞 `tkt-` を必須化<br>**追加**：`owner_id`（必須・不変）, `refs`（任意：情報共有参照）, `artifacts`（任意）, `cancel_reason`（**条件付き必須：`canceled` 時必須**）<br>**維持**：`status`, `depends`, `resume`<br>**廃止**：`assignee`, `handoffs` | 単一 Worker 担当・一方向進行の短命作業単位 |
+| **Job** | `id`, `objective`, `criteria`, `instructions`, `assignee`, `status`, `result`, `resume` | **変更**：`id` に接頭辞 `job-` を必須化<br>**維持**：`objective`, `criteria`, `instructions`, `status`, `resume`<br>**明確化**：`result`（`status` と分離した業務判定・エラー結果）, `artifacts`（任意）<br>**廃止**：`assignee` | `criteria` で完了判定できる最小実行単位。複雑な構造を持たない |
+| **Run** | `id`, `job`, `actor[]`, `started`, `ended`, `result`, `generation`, `activity`, `observed` | **変更**：`id` に接頭辞 `run-` を必須化<br>**追加**：`ticket_id`（必須）, `owner_id`（必須）, `session_id`（必須）, `wait`（任意：`job_id`, `target`, `condition`, `since`, `resume_point`, `timeout`, `resolved`）<br>**廃止**：`actor[]`<br>**明確化**：`generation`（必須・正整数）, `started`（**条件付き必須：実作業開始確定時必須、`unstarted` 予約または未起動閉鎖 `unstarted → stopped` では省略可**）, `result`（**条件付き必須：終了確定時必須**） | Job の1回の実行試行（Execution / Attempt）および待機・観測の正本 |
 | **Execution Claim** | （未定義；Lease 推奨のみ） | **新設（一意キー：`ticket_id`）**：`task_id`（必須）, `ticket_id`（必須）, `owner_id`（必須）, `session_id`（必須・`active` 以外は `null`）, `active_run_id`（必須・有効試行なしまたは非 `active` 時は `null`）, `generation`（必須・初期値 `1`、切替1回ごとに `+1`、非巻戻し）, `run_seq`（必須・初期値 `0`、試行結合/無効化/閉鎖ごと `+1`）, `state`（必須：`unassigned`/`active`/`released`/`revoked`）, `acquired`（任意）, `revoked`（任意）, `takeover`（任意：確定済み再送用 `operation_id`, `claimant_session_id`, `target_owner_id`, `successor_ticket_id`） | Ticket 単位の実行権・現行試行結合・実行系列版の正本（`generation` / `run_seq` フェンシング） |
 | **Handoff** | `Ticket.handoffs: array<string>` | **全面再設計（Task 所属揮発性単一スロット）**：`task_id`（必須）, `revision`（必須・揮発スロット書込連番）, `source_revision`（必須・消失横断比較用の永続正本単調確定版）, `current_ticket_id`, `owner_id`, `active_session_id`, `current_job_id`, `source_generation`, `activity`, `context`, `stop_position`, `blockers[]`, `notes[]`, `updated` | 閲覧専用の作業文脈キャッシュ（揮発性・正本でない・実行権なし） |
 
@@ -123,9 +125,9 @@ TTJ 1.1.0 では、独立した `Execution` オブジェクトおよび `Attempt
 
 | 操作種別 | 主な遷移・操作 | 認可・前提条件 | 確定境界・共通の保護 |
 |---|---|---|---|
-| **実行操作（開始前照合）** | 新規 Run 開始・結合（初回開始、同一計画通常再試行、Job 単独中止後の後続 Job 開始） | 生存する適格 Session（`Session.worker_id == Ticket.owner_id`）、`claim.state == "active"`、`claim.session_id == session_id`、`claim.generation == generation`、対象現在 Job、開始ガード（対象 Ticket/Job が `todo`/`doing`、前提 `depends` 全 `completed`、親 Task が `paused`/終端でない）、**`claim.active_run_id == null`**（または安全閉鎖で解放済み）、および**要求の実行系列前提（`expected_run_seq` / 前回試行基準）と現行 `claim.run_seq` の一致** | 原子的結合で `claim.active_run_id = R_new`, `claim.run_seq +1`。空き枠復帰後の古い前提再試行も拒否。拒否時は正本無変更 |
+| **実行操作（開始前照合）** | 新規 Run 開始・結合（初回開始、同一計画通常再試行、Job 単独中止後の後続 Job 開始） | 生存する適格 Session（`Session.worker_id == Ticket.owner_id`）、`claim.state == "active"`、`claim.session_id == session_id`、`claim.generation == generation`、対象現在 Job、開始ガード（対象 Ticket/Job が `todo`/`doing`、前提 `depends` 全 `completed`、親 Task が `paused`/終端でない）、**`claim.active_run_id == null`**（または安全閉鎖で解放済み）、および**要求の実行系列前提（`expected_run_seq` / 前回試行基準）と現行 `claim.run_seq` の一致** | 原子的結合で `claim.active_run_id = run-new`, `claim.run_seq +1`。空き枠復帰後の古い前提再試行も拒否。拒否時は正本無変更 |
 | **実行操作（開始後照合）** | 結合済み Run による進行更新・`waiting` 移行・結果確定・Run 起因 Handoff 更新 | 上記の認証済み Session・`active` Claim・対象現在 Job に加え、**`claim.active_run_id == run.id`（非 `null` 一致）**（Handoff 更新時は鮮度・スロットインスタンスも照合） | 不一致（未結合・閉じた同世代旧 Run・旧 `generation`・別 Session）は拒否し正本無変更 |
-| **Job 単独中止の即時無効化と安全閉鎖** | (1) Job 単独中止確定時の結合中 Run 即時無効化、(2) 同一 `active` Claim 内での通常再試行時における `unknown` 旧 Run `R1` の安全閉鎖 | `active` Claim 保持 Session または認可済み中止主体。(1) 中止確定と同時に `R1` を閉鎖・効果確定側即時拒否可能とし `active_run_id = null`, `run_seq + 1`、停止要求発行（後続開始前に停止確認または安全条件を別途確認）。(2) 安全閉鎖時は `R1` 永久閉鎖・外部フェンシング確認・残存副作用なし確認で `active_run_id = null`, `run_seq + 1` | Ticket 全体の Claim 失効不要（安全閉鎖は巻き取りには適用不可） |
+| **Job 単独中止の即時無効化と安全閉鎖** | (1) Job 単独中止確定時の結合中 Run 即時無効化、(2) 同一 `active` Claim 内での通常再試行時における `unknown` 旧 Run `run-1` の安全閉鎖 | `active` Claim 保持 Session または認可済み中止主体。(1) 中止確定と同時に `run-1` を閉鎖・効果確定側即時拒否可能とし `active_run_id = null`, `run_seq + 1`、停止要求発行（後続開始前に停止確認または安全条件を別途確認）。(2) 安全閉鎖時は `run-1` 永久閉鎖・外部フェンシング確認・残存副作用なし確認で `active_run_id = null`, `run_seq + 1` | Ticket 全体の Claim 失効不要（安全閉鎖は巻き取りには適用不可） |
 | **管理操作** | 権限保持運用者による Task/Ticket/Job の `paused`・明示解除・`canceled`（`unassigned`/`released` Ticket 中止含む）・障害解消確認後 `blocked` 復帰・依存変更・範囲変更・管理 Handoff 再生成 | 運用で定義された権限保持主体の認可。未失効 Claim は中止時に `revoked`（`generation +1`）、既 `revoked` 済みは二重失効なし。管理 Handoff 再生成は書込み時点でも `source_revision` が永続正本最新であることを検証し実行権非付与 | 終端復活禁止・監査記録必須・拒否時正本無変更 |
 | **Task 計画内待機操作** | Run を持たない Task の外部承認・計画イベント待ち（`waiting`）および承認確認後の解除・完了 | 権限保持運用者（または解除/完了時の認可済み証拠取り込み主体）。解除条件を正本 `Task.resume` または管理履歴に必須保存（完了時は Ticket 1 件以上全終端・全 `criteria` 成立） | 終端復活禁止・監査記録必須 |
 | **依存評価操作** | 未割当 Ticket および **`active` Claim を持つ未着手 Ticket（現在 Job 未着手かつ `active_run_id == null`）** の `depends` 評価による `todo ↔ waiting`・前提中止による `blocked` | 参照先 Ticket の確定状態に基づく決定的評価（認可済み依存評価経路。Run は自動開始しない） | 終端復活禁止・監査記録必須 |
@@ -159,10 +161,10 @@ TTJ 1.1.0 では、独立した `Execution` オブジェクトおよび `Attempt
 
 ```text
 unassigned (session=null, run=null, gen=1, run_seq=0)
-   ├── [初回取得: CAS gen 1→2, 非終端・過去実行残存なし・生存適格Session] ──→ active (session=S1, run=null|R_cur, gen=g, run_seq=s)
+   ├── [初回取得: CAS gen 1→2, 非終端・過去実行残存なし・生存適格Session] ──→ active (session=S1, run=null|run-cur, gen=g, run_seq=s)
    └── [未取得Ticketの管理中止 / 巻き取り確定: gen 1→2] ───────────────────→ revoked (session=null, run=null, gen=2) ※永久終端
 
-active (session=S1, run=null|R_cur, gen=g, run_seq=s)
+active (session=S1, run=null|run-cur, gen=g, run_seq=s)
    ├── [正常解放 / Ticket completed: gen g→g+1] ──────→ released (session=null, run=null, gen=g+1)
    │                                                          ├── [再取得: CAS gen +1, 非終端・全stopped・安全条件・生存適格Session] → active
    │                                                          └── [管理中止 / 新Ticket巻き取り確定: CAS gen +1] ─────────────────────→ revoked ※永久終端
@@ -175,7 +177,7 @@ active (session=S1, run=null|R_cur, gen=g, run_seq=s)
 ```
 
 - **同世代旧 Run / Job 単独中止直後 / 旧 `generation` / 外部副作用の拒否**：
-  1. 開始前照合（`active_run_id == null` ＋ `expected_run_seq` 一致＋原子的結合＋`run_seq +1`）と開始後照合（`active_run_id == run.id` 非 `null` 一致）を分離し、同世代でも閉じた旧 `R1` は即拒否され、空き枠復帰後の古い前提による並行再試行も `run_seq` 不一致で拒否される。
+  1. 開始前照合（`active_run_id == null` ＋ `expected_run_seq` 一致＋原子的結合＋`run_seq +1`）と開始後照合（`active_run_id == run.id` 非 `null` 一致）を分離し、同世代でも閉じた旧 `run-1` は即拒否され、空き枠復帰後の古い前提による並行再試行も `run_seq` 不一致で拒否される。
   2. 副作用を防ぐ必要がある操作では、**効果の確定側でも失効済み権限（旧 `generation`・失効済み Claim・閉じた同世代 `Run.id`・Job 単独中止確定と同時に即時無効化された `Run.id`）を必須拒否**し、失効前に開始済みの外部操作が残存し得る場合は安全確認完了まで後続実行を保留する。
 
 ### D.6 巻き取り可否マトリクス・単一原子確定契約・競合操作との線形化
@@ -192,16 +194,16 @@ active (session=S1, run=null|R_cur, gen=g, run_seq=s)
 
 **新 Ticket 巻き取りの単一原子確定契約と競合線形化（UC-20, UC-S02）**：
 1. **公開契約は単一の原子的確定のみ**：未確定の中間予約状態を外部公開せず、内部実装が複数段階書込みを用いる場合も途中段階を読み取り・実行開始・成功応答から完全に不可視とする。
-2. **一体確定する範囲**：(a) 旧 Ticket `T1` を `canceled`（`cancel_reason` 必須・`owner_id` 不変）、(b) 旧 Claim を `revoked`（`generation + 1`, 再取得永久禁止、二重失効なし）、(c) 後続 Ticket `T2` とその初期 Claim（確定時点で生存する適格 Session が一体取得するなら `unassigned(gen=1) → active(gen=2)`、終了済み Session には決して `active` Claim を付与せず `unassigned(gen=1)` または未確定拒否；確定済み世代は非巻戻し）、(d) 再送照合用の永続結果（`operation_id`・認可主体・実質パラメータ・確定結果）。
+2. **一体確定する範囲**：(a) 旧 Ticket `tkt-1` を `canceled`（`cancel_reason` 必須・`owner_id` 不変）、(b) 旧 Claim を `revoked`（`generation + 1`, 再取得永久禁止、二重失効なし）、(c) 後続 Ticket `tkt-2` とその初期 Claim（確定時点で生存する適格 Session が一体取得するなら `unassigned(gen=1) → active(gen=2)`、終了済み Session には決して `active` Claim を付与せず `unassigned(gen=1)` または未確定拒否；確定済み世代は非巻戻し）、(d) 再送照合用の永続結果（`operation_id`・認可主体・実質パラメータ・確定結果）。
 3. **障害前後の再送と衝突**：
    - 確定後・応答喪失後の再送で**同一 `operation_id`・同一認可主体・同一実質パラメータ**なら、元の `expected_generation`/`expected_run_seq` が古くても同一確定結果を冪等返却。
    - 同一 `operation_id` で主体または実質パラメータが異なる要求は明示拒否（正本無変更）。
    - 別 `operation_id` の競合要求は拒否（部分変更ゼロ）。
    - 未確定（確定前失敗）後の再送は、現行の正本前提を再検証。
 4. **競合操作との確定順（線形化境界）**：
-   - **親 Task 中止が先** → 終端 Task への巻き取りは拒否（親 Task・`T1` 不変）。
-   - **旧 Job 証拠確定（`T1` 完了集約）が先** → 完了済み `T1` への巻き取りは拒否（`T1` 不変）。
-   - **巻き取りが先** → 後着の旧 Job 証拠確定は終端保護で拒否、後続の親 Task 中止は既に存在する `T2` も中止・Claim 失効対象に含む。
+   - **親 Task 中止が先** → 終端 Task への巻き取りは拒否（親 Task・`tkt-1` 不変）。
+   - **旧 Job 証拠確定（`tkt-1` 完了集約）が先** → 完了済み `tkt-1` への巻き取りは拒否（`tkt-1` 不変）。
+   - **巻き取りが先** → 後着の旧 Job 証拠確定は終端保護で拒否、後続の親 Task 中止は既に存在する `tkt-2` も中止・Claim 失効対象に含む。
 
 ### D.7 Handoff の更新 3 経路分離・同一正本版上書き防止・並列 Ticket
 

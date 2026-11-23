@@ -7,6 +7,7 @@
 - [定義] 同じ文書の子レコードは同じ版として扱い、各レコードへの転記は不要。
 - [任意] `protocol` は生成側で補完し、以下の項目一覧では共通の記載を繰り返さない。
 - [任意] 各レコードを別ファイル・別形式で保存する。
+- [必須] Project・Task・Ticket・Job・Run の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-` の接頭辞で始める。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
 - [定義] `criteria` は Task・Job の完了を確認する条件の一覧。
@@ -51,24 +52,24 @@
 
 ## 3. Project
 
-- [必須] `id: string`：Project を一意に参照する識別値。
+- [必須] `id: string`：Project を一意に参照する識別値（接頭辞 `pj-` 必須）。
 - [必須] `name: string`：何の領域か分かる名前。
-- [推奨] ID にも対象を判別できる短い識別値を使う。
+- [推奨] ID にも接頭辞に続けて対象を判別できる短い識別値を使う。
 - [任意] `knowledge: array<object>`：長期知識がある場合だけ記載する。
 - [任意] リポジトリ等の追加情報は必要な場合だけ保持する。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "study-meetup",
+  "id": "pj-study-meetup",
   "name": "勉強会の運営"
 }
 ```
 
 ## 4. Task
 
-- [必須] `id: string`：Task の識別値。
-- [必須] `project: string`：所属する Project の ID。
+- [必須] `id: string`：Task の識別値（接頭辞 `tsk-` 必須）。
+- [必須] `project: string`：所属する Project の ID（`pj-*`）。
 - [必須] `objective: string`：長寿命の成果目標。
 - [必須] `criteria: array<string>`：Task 全体の完了を確認する条件を1件以上書く。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。Run を持たない Task の計画内待機にも `waiting` を用いる。
@@ -83,8 +84,8 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "prepare-invitation",
-  "project": "study-meetup",
+  "id": "tsk-prepare-invitation",
+  "project": "pj-study-meetup",
   "objective": "勉強会の案内を用意する",
   "criteria": [
     "日時・会場・申込方法が正しい案内文が確定している"
@@ -95,13 +96,13 @@
 
 ## 5. Ticket
 
-- [必須] `id: string`：Ticket の識別値。
-- [必須] `task: string`：所属する Task の ID。
+- [必須] `id: string`：Ticket の識別値（接頭辞 `tkt-` 必須）。
+- [必須] `task: string`：所属する Task の ID（`tsk-*`）。
 - [必須] `owner_id: string`：存在する単一の `Worker.id`。確定後の変更は禁止。
 - [必須] `objective: string`：達成したい目標。
-- [必須] `jobs: array<string>`：Job の ID を実行順に1件以上並べる。確定後は固定。
+- [必須] `jobs: array<string>`：Job の ID（`job-*`）を実行順に1件以上並べる。確定後は固定。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。
-- [任意] `depends: array<string>`：実行依存（先に `completed` になる必要がある前提 Ticket の ID 一覧）。循環依存は禁止。
+- [任意] `depends: array<string>`：実行依存（先に `completed` になる必要がある前提 Ticket の ID（`tkt-*`）一覧）。循環依存は禁止。
 - [任意] `refs: array<object>`：情報共有用の参照一覧（実行依存 `depends` とは明確に区別する）。
 - [任意] `artifacts: array<string>`：成果物・証拠の参照一覧。
 - [必須] `cancel_reason: string`（条件付き必須）：Ticket を `status: "canceled"` にする場合は中止理由の記録を必須とする（非 `canceled` 時は省略可）。
@@ -112,20 +113,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "create-invitation",
-  "task": "prepare-invitation",
+  "id": "tkt-create-invitation",
+  "task": "tsk-prepare-invitation",
   "owner_id": "worker-alpha",
   "objective": "案内文の初稿を作成し確認準備を整える",
   "jobs": [
-    "write-invitation",
-    "self-check-invitation"
+    "job-write-invitation",
+    "job-self-check-invitation"
   ]
 }
 ```
 
 ## 6. Job と status / result 分離
 
-- [必須] `id: string`：Job の識別値。
+- [必須] `id: string`：Job の識別値（接頭辞 `job-` 必須）。
 - [必須] `objective: string`：達成したい目標。
 - [必須] `criteria: array<string>`：Job の完了可否を確認可能な証拠で判断できる条件を1件以上書く。
 - [任意] `instructions: string`：目標だけでは手順が伝わらない場合だけ補う（v1.0.0 の項目名を維持）。
@@ -140,7 +141,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "write-invitation",
+  "id": "job-write-invitation",
   "objective": "必要事項を揃えた案内文を作る",
   "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
   "criteria": [
@@ -154,7 +155,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "review-invitation-job",
+  "id": "job-review-invitation",
   "objective": "案内文の記載内容を確認しレビュー結果を返す",
   "criteria": [
     "元の開催情報との照合結果と判定が記録されている"
@@ -162,7 +163,7 @@
   "status": "completed",
   "result": "changes_requested",
   "artifacts": [
-    "review-notes/create-invitation-r1.md"
+    "review-notes/tkt-create-invitation-rev1.md"
   ]
 }
 ```
@@ -172,7 +173,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "run-release-checks",
+  "id": "job-release-checks",
   "objective": "公開前検証を実行し結果を記録する",
   "criteria": [
     "全検証コマンドの実行ログと合否判定が保存されている"
@@ -198,8 +199,8 @@
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "deploy-staging-01",
-    "task": "prepare-invitation",
+    "id": "tkt-deploy-staging-01",
+    "task": "tsk-prepare-invitation",
     "owner_id": "worker-alpha",
     "status": "canceled",
     "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
@@ -209,12 +210,12 @@
   },
   "jobs": [
     {
-      "id": "prepare-package",
+      "id": "job-prepare-package",
       "status": "completed",
       "result": "passed"
     },
     {
-      "id": "apply-staging",
+      "id": "job-apply-staging",
       "status": "canceled",
       "result": "error"
     }
@@ -224,35 +225,35 @@
 
 ## 8. 実行依存（depends）と情報共有参照（refs）
 
-- [任意] `depends: array<string>` に、先に `completed` になる必要がある前提 Ticket の ID を指定する。
+- [任意] `depends: array<string>` に、先に `completed` になる必要がある前提 Ticket の ID（`tkt-*`）を指定する。
 - [必須] `depends` に循環依存・自己依存・重複参照を含めない（表示状態が `waiting`・`paused`・`blocked`・停止/移譲中のいずれであっても、非終端 Ticket・Job が保持する未解決 `Run.wait` と混在する循環も禁止。解消済み・解除済みの `Run.wait` は履歴として残しつつ依存グラフの辺からは除外する）。
 - [任意] `refs: array<object>` に、前 Ticket の成果物・結果・中止理由、派生元・修正対象・再実行元などを情報共有専用として記録する。
-- [必須] `refs` の各要素は `ticket_id: string` を持ち、任意で `kind: string`（例：`derived_from`・`fixes`・`rerun_of`・`related`）と `note: string` を付けられる。
+- [必須] `refs` の各要素は `ticket_id: string`（`tkt-*`）を持ち、任意で `kind: string`（例：`derived_from`・`fixes`・`rerun_of`・`related`）と `note: string` を付けられる。
 - [禁止] `refs` を実行依存や状態遷移のゲート条件として扱う。
 - [例] 次は差し戻し結果と中止理由を参照して修正・再実行する新 Ticket の例。`depends` は前提 Ticket の完了待ち、`refs` は情報共有参照として分離している。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "revise-invitation-02",
-  "task": "prepare-invitation",
+  "id": "tkt-revise-invitation-02",
+  "task": "tsk-prepare-invitation",
   "owner_id": "worker-alpha",
   "objective": "レビュー指摘を反映して案内文を修正する",
   "jobs": [
-    "apply-review-fixes",
-    "verify-invitation-links"
+    "job-apply-review-fixes",
+    "job-verify-invitation-links"
   ],
   "depends": [
-    "review-invitation-01"
+    "tkt-review-invitation-01"
   ],
   "refs": [
     {
-      "ticket_id": "create-invitation",
+      "ticket_id": "tkt-create-invitation",
       "kind": "fixes",
       "note": "初稿ドラフト成果物を引き継ぐ"
     },
     {
-      "ticket_id": "review-invitation-01",
+      "ticket_id": "tkt-review-invitation-01",
       "kind": "derived_from",
       "note": "changes_requested の指摘メモを参照"
     }
@@ -266,7 +267,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "publish-invitation",
+  "id": "tkt-publish-invitation",
   "status": "waiting",
   "resume": "会場管理者から最終使用許可の回答を受け取る"
 }
@@ -275,9 +276,9 @@
 ## 9. Run（実行試行と待機制御）
 
 - [定義] `Run` は Job の1回の実行試行を記録する正本。
-- [必須] `id: string`：実行試行を識別する ID。
-- [必須] `ticket_id: string`：所属する Ticket の ID。
-- [必須] `job: string`：実行した Job の ID。
+- [必須] `id: string`：実行試行を識別する ID（接頭辞 `run-` 必須）。
+- [必須] `ticket_id: string`：所属する Ticket の ID（`tkt-*`）。
+- [必須] `job: string`：実行した Job の ID（`job-*`）。
 - [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
 - [必須] `session_id: string`：実行を担当する単一の `Session.id`。
 - [必須] `generation: integer`：`Execution Claim` のフェンシング世代番号（正の整数）。
@@ -293,8 +294,8 @@
 {
   "protocol": "TTJ/1.1.0",
   "id": "run-staging-apply-01",
-  "ticket_id": "deploy-staging-01",
-  "job": "apply-staging",
+  "ticket_id": "tkt-deploy-staging-01",
+  "job": "job-apply-staging",
   "owner_id": "worker-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
@@ -302,7 +303,7 @@
   "activity": "alive",
   "observed": "2026-01-01T01:05:00Z",
   "wait": {
-    "job_id": "apply-staging",
+    "job_id": "job-apply-staging",
     "target": "external-approval:staging-slot-7",
     "condition": "メンテナンス枠の開始承認を受け取る",
     "since": "2026-01-01T01:04:30Z",
@@ -318,8 +319,8 @@
 {
   "protocol": "TTJ/1.1.0",
   "id": "run-write-invitation-01",
-  "ticket_id": "create-invitation",
-  "job": "write-invitation",
+  "ticket_id": "tkt-create-invitation",
+  "job": "job-write-invitation",
   "owner_id": "worker-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
@@ -337,8 +338,8 @@
 {
   "protocol": "TTJ/1.1.0",
   "id": "run-staging-apply-00",
-  "ticket_id": "deploy-staging-01",
-  "job": "apply-staging",
+  "ticket_id": "tkt-deploy-staging-01",
+  "job": "job-apply-staging",
   "owner_id": "worker-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
@@ -352,11 +353,11 @@
 ## 10. Execution Claim（実行権の正本）
 
 - [定義] `Execution Claim` は Ticket 単位（一意キー：`ticket_id`）の実行権の正本であり、`generation` によるフェンシング、現行試行 `active_run_id` の結合、および実行系列版 `run_seq` を持つ。
-- [必須] `task_id: string`：所属 Task の ID。
-- [必須] `ticket_id: string`：対象 Ticket の ID（Claim の一意キー）。
+- [必須] `task_id: string`：所属 Task の ID（`tsk-*`）。
+- [必須] `ticket_id: string`：対象 Ticket の ID（`tkt-*`、Claim の一意キー）。
 - [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
 - [必須] `session_id: string | null`：現在実行権を保持する単一の生存する適格 `Session.id`（`state` が `active` 以外のときは必ず `null`）。
-- [必須] `active_run_id: string | null`：現在有効な単一試行の `Run.id`（未実行・試行終了・`state` が `active` 以外のときは必ず `null`）。
+- [必須] `active_run_id: string | null`：現在有効な単一試行の `Run.id`（`run-*`、未実行・試行終了・`state` が `active` 以外のときは必ず `null`）。
 - [必須] `generation: integer`：初期値 `1`（`unassigned` 作成時）から、状態切替（取得・再取得・移譲・解放・失効）のたびに厳密に `+1` 単調増加する正の整数（確定済み世代は巻き戻さない）。
 - [必須] `run_seq: integer`：初期値 `0` から、Run の開始結合・即時無効化・安全閉鎖・終了確定のたびに単調に `+1` 増加する非負整数（巻き取り切替および並行再試行の古い前提検出に用いる）。
 - [必須] `state: string`：実行権状態（`unassigned`・`active`・`released`・`revoked`）。
@@ -368,8 +369,8 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "task_id": "prepare-invitation",
-  "ticket_id": "create-invitation",
+  "task_id": "tsk-prepare-invitation",
+  "ticket_id": "tkt-create-invitation",
   "owner_id": "worker-alpha",
   "session_id": "session-alpha-01",
   "active_run_id": "run-write-invitation-01",
@@ -385,8 +386,8 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "task_id": "prepare-invitation",
-  "ticket_id": "deploy-staging-01",
+  "task_id": "tsk-prepare-invitation",
+  "ticket_id": "tkt-deploy-staging-01",
   "owner_id": "worker-alpha",
   "session_id": null,
   "active_run_id": null,
@@ -398,7 +399,7 @@
     "operation_id": "op-takeover-staging-01",
     "claimant_session_id": "session-beta-01",
     "target_owner_id": "worker-beta",
-    "successor_ticket_id": "deploy-staging-02"
+    "successor_ticket_id": "tkt-deploy-staging-02"
   }
 }
 ```
@@ -406,13 +407,13 @@
 ## 11. Handoff（Task 所属の揮発性単一スロット）
 
 - [定義] `Handoff` は `Task` ごとに最大1つ持つ揮発性の引き継ぎ・状況スロット。
-- [必須] `task_id: string`：所属 Task の ID。
+- [必須] `task_id: string`：所属 Task の ID（`tsk-*`）。
 - [必須] `revision: integer`：揮発スロット側の書込連番（同一スロット・同一 `source_revision` 内で単調増加する正の整数）。
 - [必須] `source_revision: integer`：揮発スロットの消失をまたいで鮮度を比較できる永続正本側の単調確定版（正の整数）。さらに同一 `source_revision` であっても、スロット消失・再生成前に準備された旧書込みは新スロットを上書きできない（[規格本文](specification.md) 第9.1節）。
-- [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID。
+- [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID（`tkt-*`）。
 - [任意] `owner_id: string | null`：対象 Ticket の `Worker.id`。
 - [任意] `active_session_id: string | null`：対象 Ticket の実行権を持つ、または直近の `Session.id`。
-- [任意] `current_job_id: string | null`：現在 Job の ID。
+- [任意] `current_job_id: string | null`：現在 Job の ID（`job-*`）。
 - [任意] `source_generation: integer`：表示対象 `current_ticket_id` の `Execution Claim` 世代。
 - [任意] `activity: string`：実行観測の要約（`unstarted`・`alive`・`stopped`・`unknown`）。
 - [任意] `context: string`：現在の作業文脈・申し送り・次の操作（再開に不可欠な条件は正本にも必ず残す）。
@@ -426,13 +427,13 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "task_id": "prepare-invitation",
+  "task_id": "tsk-prepare-invitation",
   "revision": 5,
   "source_revision": 12,
-  "current_ticket_id": "revise-invitation-02",
+  "current_ticket_id": "tkt-revise-invitation-02",
   "owner_id": "worker-alpha",
   "active_session_id": "session-alpha-02",
-  "current_job_id": "apply-review-fixes",
+  "current_job_id": "job-apply-review-fixes",
   "source_generation": 2,
   "activity": "alive",
   "context": "レビュー指摘3件のうち日時表記と申込URLを修正済み。残り1件の会場アクセス表記を反映中。",
@@ -499,7 +500,7 @@
   "protocol": "TTJ/1.1.0",
   "id": "evt-write-invitation-started",
   "operation": "start-write-invitation",
-  "target": "write-invitation",
+  "target": "job-write-invitation",
   "event": "status.changed",
   "from": "todo",
   "to": "doing",

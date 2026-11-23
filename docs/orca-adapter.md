@@ -11,7 +11,7 @@ TTJ 1.1.0 の禁止事項 #18 に従い、責務を次の2層に厳格分離す�
 
 | 層 | 責務 | 禁止事項 |
 |---|---|---|
-| **TTJ Core** | Project / Task / Ticket / Job / Run / Worker / Session / Execution Claim / Handoff / Knowledge のデータモデル、公開契約、状態遷移、不変条件、`generation`/`run_seq` フェンシング | Orca 専用 Run ID・Orchestration Task ID・Session 型・Bot 種別・Orca 固有状態遷移・API 接続処理をコア仕様やコア公開契約へ組み込むこと |
+| **TTJ Core** | Project / Task / Ticket / Job / Run（ID 接頭辞 `pj-` / `tsk-` / `tkt-` / `job-` / `run-`） / Worker / Session / Execution Claim / Handoff / Knowledge のデータモデル、公開契約、状態遷移、不変条件、`generation`/`run_seq` フェンシング | Orca 専用 Run ID・Orchestration Task ID・Session 型・Bot 種別・Orca 固有状態遷移・API 接続処理をコア仕様やコア公開契約へ組み込むこと |
 | **Orca Adapter（外部層）** | TTJ 概念と Orca 概念の対応付け（`ExternalBinding`）、認証・実行環境設定の保持、Dispatch 起動・独立監視、ゲートウェイ側での旧 `generation`・閉じた `Run.id` 失効強制、Handoff 参照 UI 連携 | TTJ の業務完了判定や巻き取り可否判定をバイパスすること、Orca の稼働表示のみで安全巻き取りを許可すること |
 
 ---
@@ -74,14 +74,14 @@ Orca 環境では、常駐型の既存 Orca Bot と、オンデマンドに起�
 
 ### 5.1 `ExternalBinding` の役割
 
-TTJ Core のレコードに Orca 固有の ID や認証情報を直接埋め込まず、Adapter 側が管理する `ExternalBinding` テーブル／ドキュメントで TTJ ID と外部 ID を対応付ける。
+TTJ Core のレコードに Orca 固有の ID や認証情報を直接埋め込まず、Adapter 側が管理する `ExternalBinding` テーブル／ドキュメントで TTJ ID（`pj-*` / `tsk-*` / `tkt-*` / `job-*` / `run-*` 等）と外部 ID を対応付ける。
 
 ```json
 {
   "binding_id": "bind-orca-001",
   "adapter": "orca",
   "ttj_entity": "ticket",
-  "ttj_id": "revise-invitation-02",
+  "ttj_id": "tkt-revise-invitation-02",
   "external_entity": "orchestration_task",
   "external_id": "orca-otask-9f31c",
   "metadata": {
