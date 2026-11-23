@@ -14,7 +14,7 @@
 - [必須] 新規作成時の作業状態は、未指定でも `todo`。
 - [定義] 任意の一覧を省略した新規レコードは、その一覧を空として扱う。
 - [必須] 更新で省略した項目は既存値を維持し、空にする場合は明示する。
-- [定義] 既存の参照名 `project`・`task`・`job`・`target` を維持しつつ、新規の ID 参照名は `owner_id`・`worker_id`・`task_id`・`ticket_id`・`session_id`・`active_run_id`・`current_ticket_id`・`active_session_id`・`current_job_id` に統一する。
+- [定義] 既存の参照名 `project`・`task`・`job`・`target` を維持しつつ、新規の ID 参照名は `owner_id`・`worker_id`・`task_id`・`ticket_id`・`session_id`・`active_run_id`・`run_seq`・`current_ticket_id`・`active_session_id`・`current_job_id`・`source_revision` に統一する。
 - [推奨] フィールド名はできるだけ1単語とし、意味を明確にする連結名を規格全体で統一して使う。
 
 ## 1. Worker
@@ -71,7 +71,7 @@
 - [必須] `project: string`：所属する Project の ID。
 - [必須] `objective: string`：長寿命の成果目標。
 - [必須] `criteria: array<string>`：Task 全体の完了を確認する条件を1件以上書く。
-- [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。Task レベルの計画内待機にも `waiting` を用いる。
+- [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。Run を持たない Task の計画内待機にも `waiting` を用いる。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・解除条件が一意に分からない場合に1文で記載する（揮発性 `Handoff` への記載を理由に省略しない）。
 - [任意] `deadline: string`：期限がある Task だけに完了期限を書く。
 - [必須] `deadline` を記載する場合は、タイムゾーン付きの ISO 8601 日時にする。
@@ -188,7 +188,7 @@
 ## 7. 終了判定・中止と新 Ticket による再実行
 
 - [必須] Job は確認可能な証拠に基づき `criteria` をすべて満たしたら `completed`、中止を判断したら `canceled` にする。
-- [必須] 後続 Job を開始するには、先行 Job がすべて `completed` または `canceled` であることに加え、[規格本文](specification.md) 第6節・第8.2節の開始条件（前提 Ticket の `completed`、Ticket・Task が `paused`・`blocked`・`waiting`・終端でないこと、有効な `active` `Execution Claim` の保持、および先行 Job に対する停止確認または副作用重複を防ぐ安全条件の確認）をすべて満たす必要がある。たとえば先行 Job を `canceled` にしても、停止未確認・安全未確認のまま、または Ticket が `paused` 中であれば後続 Job は開始できない。
+- [必須] 後続 Job を開始するには、先行 Job がすべて `completed` または `canceled` であることに加え、[規格本文](specification.md) 第6節・第8.2節の開始条件をすべて満たす必要がある：前提 Ticket が `completed`、対象 Ticket および現在 Job が `todo` または `doing`（`paused`・`blocked`・`waiting`・終端でないこと）、親 Task が `paused`・終端でないこと（親 Task が別 Ticket 起因で `waiting`・`blocked` であっても独立した実行可能 Ticket・Job は開始できる）、有効な `active` `Execution Claim` の保持、および先行 Job に対する停止確認または安全条件による試行権限の安全閉鎖。たとえば先行 Job を `canceled` にしても、停止未確認・安全未確認のまま、または対象 Ticket が `paused` 中であれば後続 Job は開始できない。
 - [必須] Ticket は全 Job が `completed` または `canceled` になれば `completed` にする。
 - [必須] Ticket 自身がキャンセル済みなら `canceled` を維持し、中止理由（`cancel_reason`）を必須保持する。
 - [定義] 次 Ticket が未作成でも、終了済み Ticket はアーカイブできる。
@@ -225,7 +225,7 @@
 ## 8. 実行依存（depends）と情報共有参照（refs）
 
 - [任意] `depends: array<string>` に、先に `completed` になる必要がある前提 Ticket の ID を指定する。
-- [必須] `depends` に循環依存・自己依存・重複参照を含めない（`Run.wait` による別 Ticket 完了待ちと混在する循環も禁止）。
+- [必須] `depends` に循環依存・自己依存・重複参照を含めない（未解決の `Run.wait` による別 Ticket 完了待ちと混在する循環も禁止。解消済み・解除済みの `Run.wait` は履歴として残しつつ依存グラフの辺からは除外する）。
 - [任意] `refs: array<object>` に、前 Ticket の成果物・結果・中止理由、派生元・修正対象・再実行元などを情報共有専用として記録する。
 - [必須] `refs` の各要素は `ticket_id: string` を持ち、任意で `kind: string`（例：`derived_from`・`fixes`・`rerun_of`・`related`）と `note: string` を付けられる。
 - [禁止] `refs` を実行依存や状態遷移のゲート条件として扱う。
@@ -281,12 +281,12 @@
 - [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
 - [必須] `session_id: string`：実行を担当する単一の `Session.id`。
 - [必須] `generation: integer`：`Execution Claim` のフェンシング世代番号（正の整数）。
-- [必須] `started: string`（条件付き必須）：実作業の開始確定時刻（ISO 8601）。`activity: "unstarted"` で起動前予約登録する場合のみ省略可とし、開始確定時に必須記録する。
+- [必須] `started: string`（条件付き必須）：実作業の開始を確定した Run では開始時刻（ISO 8601）を必須記録する。起動前予約（`activity: "unstarted"`）のまま、または実作業を開始せずに取り消して `stopped` 等で終了閉鎖した Run には開始事実がないため、`started` を省略できる。
 - [任意] `ended: string`：終了時刻（ISO 8601。終了確定時に時刻を確認できる場合は記録する）。
-- [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`error` 等）。実行中は省略可、**Run の終了確定時は必須**とする。
+- [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`canceled`・`error` 等）。実行中は省略可、**Run の終了確定時は必須**とする。
 - [任意] `activity: string`：実行観測状態（`unstarted`・`alive`・`stopped`・`unknown`）。
 - [任意] `observed: string`：最終観測時刻（ISO 8601）。
-- [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`job_id`・`target`・`condition`・`since`・`resume_point`・`timeout`）。Job 側ではなく Run 側で保持する。
+- [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`job_id`・`target`・`condition`・`since`・`resume_point`・`timeout`・待機解消/解除時の `resolved`）。Job 側ではなく Run 側で保持する。
 - [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している Run の例（初回取得済み Claim の `generation: 2`）。
 
 ```json
@@ -331,20 +331,39 @@
 }
 ```
 
+- [例] 次は起動前予約（`unstarted`）を実作業開始前に取り消して閉鎖した Run（`unstarted → stopped`）。実作業を開始していないため `started` を持たず、終了 `result` のみを記録する。
+
+```json
+{
+  "protocol": "TTJ/1.1.0",
+  "id": "run-staging-apply-00",
+  "ticket_id": "deploy-staging-01",
+  "job": "apply-staging",
+  "owner_id": "worker-alpha",
+  "session_id": "session-alpha-01",
+  "generation": 2,
+  "ended": "2026-01-01T00:55:00Z",
+  "activity": "stopped",
+  "observed": "2026-01-01T00:55:00Z",
+  "result": "canceled"
+}
+```
+
 ## 10. Execution Claim（実行権の正本）
 
-- [定義] `Execution Claim` は Ticket 単位（一意キー：`ticket_id`）の実行権の正本であり、`generation` によるフェンシングと現行試行 `active_run_id` の結合を持つ。
+- [定義] `Execution Claim` は Ticket 単位（一意キー：`ticket_id`）の実行権の正本であり、`generation` によるフェンシング、現行試行 `active_run_id` の結合、および実行系列版 `run_seq` を持つ。
 - [必須] `task_id: string`：所属 Task の ID。
 - [必須] `ticket_id: string`：対象 Ticket の ID（Claim の一意キー）。
 - [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
 - [必須] `session_id: string | null`：現在実行権を保持する単一の `Session.id`（`state` が `active` 以外のときは必ず `null`）。
 - [必須] `active_run_id: string | null`：現在有効な単一試行の `Run.id`（未実行・試行終了・`state` が `active` 以外のときは必ず `null`）。
 - [必須] `generation: integer`：初期値 `1`（`unassigned` 作成時）から、状態切替（取得・再取得・移譲・解放・失効）のたびに厳密に `+1` 単調増加する正の整数。
+- [必須] `run_seq: integer`：初期値 `0` から、Run の開始結合・安全閉鎖・終了確定のたびに単調に `+1` 増加する非負整数（巻き取り切替時の陳腐化検出に用いる）。
 - [必須] `state: string`：実行権状態（`unassigned`・`active`・`released`・`revoked`）。
 - [任意] `acquired: string`：取得時刻（ISO 8601）。
 - [任意] `revoked: string`：失効時刻（ISO 8601）。
-- [任意] `takeover: object`：新 Ticket へ移す巻き取りを分割手続で実行する場合の永続予約・冪等復旧情報（`operation_id`・`claimant_session_id`・`target_owner_id`・`successor_ticket_id`）。
-- [例] 次は `unassigned`（`generation: 1`）から初回取得し、`run-write-invitation-01` を実行中の `Execution Claim`（`generation: 2`）。
+- [任意] `takeover: object`：新 Ticket へ移す巻き取りの冪等確定・復旧情報（`operation_id`・`claimant_session_id`・`target_owner_id`・`successor_ticket_id`・`status`：`reserved` | `committed`）。
+- [例] 次は `unassigned`（`generation: 1`, `run_seq: 0`）から初回取得し、`run-write-invitation-01` を実行中の `Execution Claim`（`generation: 2`, `run_seq: 1`）。
 
 ```json
 {
@@ -355,12 +374,13 @@
   "session_id": "session-alpha-01",
   "active_run_id": "run-write-invitation-01",
   "generation": 2,
+  "run_seq": 1,
   "state": "active",
   "acquired": "2026-01-01T01:00:00Z"
 }
 ```
 
-- [例] 次は停止確認および安全確認後に、新 Ticket への巻き取りで旧実行権を失効させた状態（`generation: 2 → 3`、`session_id: null`、`active_run_id: null`）。以降の `generation: 2` からの更新および旧 Ticket での再取得は拒否される。
+- [例] 次は停止確認および安全確認後に、新 Ticket への巻き取りで旧実行権を失効・確定させた状態（`generation: 2 → 3`、`session_id: null`、`active_run_id: null`）。以降の `generation: 2` からの更新および旧 Ticket での再取得は拒否される。
 
 ```json
 {
@@ -371,13 +391,15 @@
   "session_id": null,
   "active_run_id": null,
   "generation": 3,
+  "run_seq": 2,
   "state": "revoked",
   "revoked": "2026-01-01T01:40:00Z",
   "takeover": {
     "operation_id": "op-takeover-staging-01",
     "claimant_session_id": "session-beta-01",
     "target_owner_id": "worker-beta",
-    "successor_ticket_id": "deploy-staging-02"
+    "successor_ticket_id": "deploy-staging-02",
+    "status": "committed"
   }
 }
 ```
@@ -386,12 +408,13 @@
 
 - [定義] `Handoff` は `Task` ごとに最大1つ持つ揮発性の引き継ぎ・状況スロット。
 - [必須] `task_id: string`：所属 Task の ID。
-- [必須] `revision: integer`：Task 単位で単調増加する更新世代（遅延更新や古い再生成による上書きを防止する）。
+- [必須] `revision: integer`：揮発スロット側の書込連番（同一 `source_revision` 内で単調増加する正の整数）。
+- [必須] `source_revision: integer`：揮発スロットの消失をまたいで鮮度を比較できる永続正本側の単調確定版（正の整数）。消失前の古いスナップショットがより大きい `revision` で遅延到着しても、`source_revision` の比較により確実に拒否する。
 - [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID。
 - [任意] `owner_id: string | null`：対象 Ticket の `Worker.id`。
 - [任意] `active_session_id: string | null`：対象 Ticket の実行権を持つ、または直近の `Session.id`。
 - [任意] `current_job_id: string | null`：現在 Job の ID。
-- [任意] `source_generation: integer`：表示対象 `current_ticket_id` の `Execution Claim` 世代（同一 Ticket からの古い世代による上書きを防止する）。
+- [任意] `source_generation: integer`：表示対象 `current_ticket_id` の `Execution Claim` 世代。
 - [任意] `activity: string`：実行観測の要約（`unstarted`・`alive`・`stopped`・`unknown`）。
 - [任意] `context: string`：現在の作業文脈・申し送り・次の操作（再開に不可欠な条件は正本にも必ず残す）。
 - [任意] `stop_position: string`：停止位置の要約。
@@ -406,6 +429,7 @@
   "protocol": "TTJ/1.1.0",
   "task_id": "prepare-invitation",
   "revision": 5,
+  "source_revision": 12,
   "current_ticket_id": "revise-invitation-02",
   "owner_id": "worker-alpha",
   "active_session_id": "session-alpha-02",
@@ -466,7 +490,7 @@
 
 - [必須] 現在状態と別に、変更前後・主体・時刻・理由・確定世代・関連実行を追跡する。
 - [定義] `id`・`operation` はイベントと一括操作、`target`・`event` は対象の ID と変更の種類。
-- [定義] `from`・`to`・`worker_id`・`session_id`・`timestamp`・`reason`・`revision` は変更前後・実行主体・時刻・理由・レコード世代（管理・監視・証拠取り込み操作では当該認可主体を識別する）。
+- [定義] `from`・`to`・`worker_id`・`session_id`・`timestamp`・`reason`・`revision` は変更前後・実行主体・時刻・理由・レコード世代（管理・復旧・監視・証拠取り込み操作では当該認可主体を識別する）。
 - [定義] `run`・`generation` は関連する Run と `Execution Claim` のフェンシング世代。
 - [任意] 管理情報は更新手段で補完し、同等の履歴形式を使う。
 - [禁止] 補完できない事実を捏造する、または各階層へ手入力させる。

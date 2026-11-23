@@ -10,7 +10,7 @@
 - [定義] **TTJ**：担当や環境が変わっても、作業・申し送り・知識を安全に継続する規格。
   - [任意] 単一主体・複数主体の分担・担当引き継ぎ・長寿命 Task の継続運用に使う。
   - [必須] 必要な情報を一度だけ記録する。
-  - [推奨] フィールド名はできるだけ1単語とし、意味を明確にする連結名（`owner_id`・`task_id`・`ticket_id`・`worker_id`・`session_id`・`active_run_id`・`current_ticket_id`・`active_session_id`・`current_job_id`・`cancel_reason` 等）を統一して使う。
+  - [推奨] フィールド名はできるだけ1単語とし、意味を明確にする連結名（`owner_id`・`task_id`・`ticket_id`・`worker_id`・`session_id`・`active_run_id`・`run_seq`・`current_ticket_id`・`active_session_id`・`current_job_id`・`source_revision`・`cancel_reason` 等）を統一して使う。
   - [禁止] 不要な分類・専用の型・重複記入・不要な状態機械を増やす。
   - [禁止] 特定の Agent・Bot・オーケストレーター実装への依存を TTJ Core へ組み込む。
 - [定義] **規格の識別**：`protocol` は JSON 文書の規格名と版を表す。
@@ -106,6 +106,7 @@
 - [必須] **正式作成**：Ticket と全 Job の定義を原子的に確定する。
   - [必須] `jobs` に Job の ID を実行順に並べる。
   - [必須] Job 列の結果で Ticket の `objective` を達成できることを確認する。
+  - [必須] 正式作成時に当該 Ticket に対する論理的な初期 `Execution Claim`（`state: "unassigned"`, `session_id: null`, `active_run_id: null`, `generation: 1`, `run_seq: 0`）を成立させる（物理レコードを遅延生成する実装でも、未取得 Ticket に対する取得・中止等は同一の観測結果とする）。
   - [任意] 正式作成前の Draft やテンプレートを編集する。
 - [禁止] **確定後の変更**：Ticket 確定後に Job 列と作業定義を変更しない。
   - [禁止] Job の追加・削除・移動・並べ替え、`objective`・`criteria`・`instructions` の実質変更、完了済み Job への巻き戻し・再入力。
@@ -137,7 +138,7 @@
   - [禁止] 待機対象の実装種類や Worker 種別によって状態遷移を分岐させる。
 - [定義] `paused`：明示的な判断による保留。
   - [必須] 実行再開には明示解除と、残る待機・障害の解消が必要。
-  - [必須] 保留中も未解消の課題を保持し、解除時に再評価する。
+  - [必須] 保留中も未解消の待機・課題を保持し、解除時に再評価する。
 - [定義] `blocked`：スクリプト異常・必要な成果物の欠落・実行環境の不備・必要な作業の実施不能・復旧未完了など、現行計画では継続できない計画外の問題がある状態。
 - [定義] `completed`：その単位の完了判定を満たした終端状態。
 - [定義] `canceled`：権限を持つ主体が中止した終端状態。
@@ -177,14 +178,17 @@
 
 ### 5.2. ガードと操作種別ごとの認可
 
-- [必須] **遷移の検証**：通常経路または Ticket の集約規則、親子規則、および操作種別に応じた認可条件を満たす。
+- [必須] **遷移の検証**：通常経路または Ticket の集約規則、親子規則、および操作種別に応じた認可条件を満たす。拒否時は正本を一切変更しない。
   - [禁止] 定義外の状態・遷移、および失効した実行権・旧 `generation`・閉じた `Run.id` からの状態遷移。
   - [定義] 同じ状態での説明・観測・履歴更新は状態遷移に含めない。
-- [必須] **実行操作の認可**：Job の実作業開始・進行中の待機移行・待機解除後の続行・Run 起因の結果確定などの実行操作では、認証済み Session と Owner の参照整合（`Session.worker_id == Ticket.owner_id`）、`active` な `Execution Claim`（現行 `session_id`・最新 `generation`）、対象 Job（現在 Job）、および現行 `Run.id`（`Claim.active_run_id`）の照合を必須とする。
-- [必須] **管理・評価・証拠取り込み操作の認可**：`Execution Claim` が不要または未発行の操作は、次の正当な経路に限定して許可し、すべての経路で認可主体の検証・終端状態（`completed`/`canceled`）の復活禁止・監査記録（主体・時刻・理由・対象・変更前後・確定世代）を必須適用する。
-  - [必須] **管理操作**：権限を持つ運用主体による Task・Ticket・Job の明示保留（`paused`）・明示解除・中止（`canceled`）・依存変更・範囲変更。中止・保留時に対象範囲の `Execution Claim` が `active` であれば、同時に失効（または停止要求）を確定する。
+- [必須] **実行操作の認可（開始前と開始後を明確に区別する）**：
+  - [必須] **Run 開始・結合操作（開始前照合）**：認証済み Session と Owner の参照整合（`Session.worker_id == Ticket.owner_id`）、`active` な `Execution Claim`（現行 `session_id`・最新 `generation`）、対象現在 Job、開始状態ガード、および試行枠の空き（`claim.active_run_id == null`、または第8.2節の安全閉鎖条件による旧試行解放と同時・先行の空き枠確保）を検証し、新 `Run.id` を原子的に `claim.active_run_id` へ結合して `claim.run_seq` を `+1` する。
+  - [必須] **結合済み Run の実行更新・結果確定操作（開始後照合）**：認証済み Session と Owner の参照整合（`Session.worker_id == Ticket.owner_id`）、`active` な `Execution Claim`（現行 `session_id`・最新 `generation`）、対象現在 Job に加え、**現行 Run の非 `null` 一致（`claim.active_run_id == run.id`）**をすべて照合する。1つでも不一致（未結合・閉じた同世代旧 Run・旧 `generation`・別 Session）なら拒否する。
+- [必須] **管理・評価・証拠取り込み操作の認可**：`Execution Claim` を要しない操作は、次の正当な経路に限定して許可し、すべての経路で認可主体の検証・終端状態（`completed`/`canceled`）の復活禁止・監査記録（操作主体・時刻・理由・対象・変更前後・確定世代）を必須適用する。
+  - [必須] **管理操作**：権限を持つ運用主体による Task・Ticket・Job の明示保留（`paused`）・明示解除・中止（`canceled`）・障害解消確認後の `blocked` 復帰・依存変更・範囲変更・巻き取り復旧確定。未割当（`unassigned`）または `released` の Ticket を中止する場合は Claim を `revoked`（`generation +1`）へ確定し、既に当該操作・巻き取りで `revoked` 済みの Claim を持つ旧 Ticket を終端化する場合は二重失効・追加世代加算を行わない。
+  - [必須] **Task 計画内待機操作（Run を持たない Task）**：権限を持つ運用主体が、Run を持たない Task を外部承認・計画イベント待ちとして `waiting` に遷移させる（解除条件を正本 `Task.resume` または管理履歴へ必須保存）。承認・イベントの確認可能な証拠が到着した際は、権限を持つ運用主体または認可済み証拠取り込み主体が証拠を照合して `waiting` を解除し、未着手なら `todo`・着手済みなら `doing`、Task 完了条件をすべて満たしていれば `completed` へ原子的に確定する。
   - [必須] **依存評価操作**：`depends` に基づく未割当 Ticket の `todo ↔ waiting` および前提 Ticket 中止に伴う `blocked` 遷移。前提 Ticket の確定状態に基づいて決定的に評価する。
-  - [必須] **証拠取り込み操作**：Run 終了後に到着した確認可能な外部応答・証拠の取り込み。当該 Ticket の現行 `active` Claim を保持する認証済み Session、または検証済み証拠を取り込む認可済み主体が、現在 Job の `criteria`・待機条件を照合して `waiting → completed`（`result` 確定）または待機解除を原子的に確定する。失効した旧 Run・旧 `generation` からの送信は拒否する。
+  - [必須] **証拠取り込み操作**：Run 終了後（`claim.active_run_id == null`）に到着した確認可能な外部応答・証拠の取り込み。対象 Ticket が `paused`・`blocked`・終端でなく、現在 Job が **`waiting` または（Run 終了後の）`doing`** である場合に、現行 `active` Claim を保持する認証済み Session または検証済み証拠を取り込む認可済み主体が、現在 Job の `criteria`・待機条件を照合して `completed`（`result` 確定）または待機解除（`waiting → doing` / `todo`）を原子的に確定する。閉じた旧 `Run.id` 名義・旧 `generation` からの直接更新は拒否する。
 - [必須] `todo`：制約が解消し、対象と配下が未着手。
 - [必須] `doing`：開始可能で、待機・保留・障害が解消している。
   - [必須] `todo` からは開始記録を同時確定し、他の状態からは開始履歴がある。
@@ -194,7 +198,7 @@
 - [必須] `blocked`：継続不能な課題があり、保留中なら先に明示解除している。
 - [必須] `completed`：第6節の単位ごとの完了判定を満たす。
   - [必須] Task・Job では待機・保留・障害を解消済みである。
-  - [必須] Task・Job の `waiting` からは、待機結果の確認可能な証拠によって `criteria` が成立する。
+  - [必須] Task・Job の `waiting` からは、待機結果の確認可能な証拠によって `criteria`（Task では全 Ticket 終端等の完了条件も含む）が成立する。
 - [必須] `canceled`：中止判断・中止理由の記録と、対象範囲の実行権失効・停止要求を確定する。
 - [必須] **復帰先と保留解除の順序**：`paused` 解除前は実行を再開しない。明示解除時は保持していた未解消の障害（`blocked`）・待機（`waiting`）および前提依存を先に再評価し、残存する制約に従う（残る障害があれば `blocked`、残る待機があれば `waiting`）。すべての制約が解消した場合のみ、未着手なら `todo`、着手済みなら `doing` を選ぶ。
   - [禁止] 保留前の状態を無条件に復元する。
@@ -215,18 +219,18 @@
   - [必須] 待機では Ticket の保留・障害・終端を、障害では保留・終端を優先する。
   - [必須] 保留中の待機・課題を保持し、解除時に再評価する。
   - [必須] Job が終端になったら、次の Job または Ticket の終了を判定する。
-- [必須] **実行制限**：Ticket の保留（`paused`）・障害（`blocked`）・終端（`completed`/`canceled`）中、および未解除の待機（`waiting`）中は、新しい作業（新規 Job や未解除待機中の次工程）を開始しない。
+- [必須] **実行制限**：対象 Ticket または現在 Job の保留（`paused`）・障害（`blocked`）・終端（`completed`/`canceled`）中、および未解除の待機（`waiting`）中は、新しい作業（新規 Job や未解除待機中の次工程）を開始しない。
   - [必須] `waiting` 中の継続・再開では、第8.4節の順序に従い待機条件と再開位置を引き継いで状態を再評価し、待機解除で `doing` へ遷移した後に同一未完了 Job の残処理を実行する（待機条件の成立により直接 `completed` へ遷移する場合は新 Run 開始を要しない）。
-  - [禁止] Task の保留・終端中の開始。
-  - [禁止] Task の待機・障害だけを理由に独立した全 Ticket を停止する。
+  - [禁止] 親 Task の保留（`paused`）・終端（`completed`/`canceled`）中の開始。
+  - [禁止] 親 Task が別 Ticket 起因で `waiting`・`blocked` であることだけを理由に、独立した実行可能 Ticket・Job の開始を停止・拒否する。
   - [必須] 明示保留（`paused`）では、既存実行の安全な停止・中断を求める。
 - [必須] **Job 完了**：確認可能な証拠に基づき Job の `criteria` をすべて満たした時点で `completed` とし、`result` および必要な成果物参照を残す。
 - [任意] **Job の中止**：必要な Job だけを理由を残して `canceled` にし、後続を続ける。
-  - [必須] 該当 Job の実行権・現行試行を失効させて停止を要求する。
+  - [必須] 該当 Job に結合中の Run がある場合は停止を要求し、後続 Job を開始する前に第8.2節の「停止確認または安全条件による試行権限の安全閉鎖」を満たす。
   - [禁止] 中止した Job が目標を達成したとみなす。
 - [必須] **Ticket 完了**：全 Job が `completed` または `canceled` になれば `completed` にする。
   - [必須] 自身がすでに `canceled` なら、その状態を維持する。
-  - [必須] Ticket が終端になった時点で対象 Ticket の `Execution Claim` を解放または失効（`session_id = null`, `active_run_id = null`, `generation +1`）させる。
+  - [必須] Ticket が終端になった時点で対象 Ticket の `Execution Claim` が `active` であれば解放または失効（`session_id = null`, `active_run_id = null`, `generation +1`）させる（既に `released`/`revoked` 済みなら二重変更しない）。
   - [禁止] Ticket 独自の完了条件や承認項目を追加する。
   - [定義] 全 Job が中止でも処理終了を表し、目標達成を保証しない。
   - [必須] Ticket 終了時に正式な成果・結果・状態を永続化する。
@@ -236,7 +240,7 @@
   - [必須] 中止 Job・中止 Ticket や差し戻し結果で未達となった必須範囲を解決するか、権限を持つ主体が理由付きで除外する。
   - [禁止] Ticket の処理終了や完了 Ticket 数だけを目標達成の証拠にする。
 - [必須] **Task・Ticket の中止**：未終端の子孫を同時に `canceled` にし、Ticket では中止理由（`cancel_reason`）を必須記録する。
-  - [必須] 終端済みの子を保持し、対象範囲の `Execution Claim` を `revoked` として失効させ、実行中の Run へ停止を要求する。
+  - [必須] 終端済みの子を保持し、対象範囲の `Execution Claim` が未失効（`unassigned`・`active`・`released`）であれば `revoked`（`generation +1`, `session_id = null`, `active_run_id = null`、再取得永久禁止）として失効させ、実行中の Run へ停止を要求する。既に当該巻き取り・中止で `revoked` 済みの Claim に対しては二重失効・追加世代加算を行わない。
   - [必須] 明示的な中止を、全 Job 終端による Ticket 完了より優先する。
   - [禁止] 遅延結果で終端状態を復活させる、または停止要求だけで終了確認にする。
 - [必須] **終端の保持**：保存中の状態・成果・中止理由・履歴を改ざんしない。
@@ -250,7 +254,11 @@
   - [定義] 複数指定はすべての処理完了を待ち、空の一覧は前提なしを意味する。
   - [任意] 別 Task・別 Project の Ticket を参照する。
   - [必須] 参照先または検証可能な完了記録の存在を確認する。
-  - [禁止] 自己依存・重複参照・循環する完了依存（`depends` と `Run.wait` による別 Ticket 完了待ちの辺が混在する循環を含む）。
+  - [禁止] 自己依存・重複参照・循環する完了依存。
+- [必須] **完了依存グラフの辺と競合確定境界**：
+  - [定義] 完了依存グラフの有向辺に含めるのは、(1) 非終端 Ticket の `depends` による前提 Ticket への辺、および (2) **現在未解決の待機**（対象 Ticket・Job が `waiting` 状態であるか、停止・移譲中で未解決のまま引き継がれている待機）における `Run.wait` の別 Ticket 完了待ちへの辺のみとする。
+  - [必須] 解消済み・解除済みとなった `Run.wait` は実行履歴として保持しつつ完了依存グラフの辺から除外する（待機が解消・解除された後に逆向きの完了依存を登録することは循環に該当せず許可される）。
+  - [必須] 完了依存の登録・変更（静的 `depends` と動的 `Run.wait` の混在を含む）は、循環を閉じ得る逆向き登録が並行に発行されても双方同時に成功しない原子的な循環検証・確定境界で評価し、高々一方のみを確定し他方を拒否する（拒否時は正本無変更）。
 - [必須] **実行依存の評価**：全依存先が `completed` になった場合だけ開始する。
   - [必須] 前提待ちは `waiting` とし、保留・障害・終端を優先する。
   - [禁止] Ticket 自身のキャンセル・削除・不明状態を完了とみなす。
@@ -277,16 +285,17 @@
 ### 8.1. Run（実行試行の正本）
 
 - [定義] **Run**：Job の1回の実行試行（Execution / Attempt に相当）を記録する正本。
-  - [必須] `id`・`ticket_id`・`job`・`owner_id`・`session_id`・`generation` を追跡し、実作業の開始確定時に `started` を必須記録する（`activity: "unstarted"` で起動前予約登録する場合のみ `started` を未設定とできる）。
+  - [必須] `id`・`ticket_id`・`job`・`owner_id`・`session_id`・`generation` を追跡する。
+  - [必須] **実作業の開始事実と `started`**：実作業の開始を確定した Run では `started`（開始時刻）を必須記録する。起動前予約（`activity: "unstarted"`）のまま、または実作業を開始せずに取り消して `stopped` 等で終了閉鎖した Run には開始時刻が存在しないため、`started` を省略できる。
   - [必須] Run の終了確定時に `result` を必須記録し、終了時刻を確認できる場合は `ended` も記録する。
   - [必須] `Run.owner_id` は対象 Ticket の `owner_id` と一致し、`Run.session_id` はその Worker に属する実行権保持 Session と一致する。
-  - [必須] 同一 Ticket で有効な実行試行（`Claim.active_run_id` に紐づく Run）は同時に最大1つとする。
-  - [必須] 正常終了・異常終了・中止・失効により Run が終了確定した時点で、その `Run.id` の試行権限を即座に閉じる（`Claim.active_run_id` から解除し、閉じた `Run.id` からの後着結果・状態更新を拒否する）。
+  - [必須] 同一 Ticket で有効な実行試行（`Claim.active_run_id` に結合された Run）は同時に最大1つとする。
+  - [必須] 正常終了・異常終了・中止・失効・安全閉鎖により Run が終了確定した時点で、その `Run.id` の試行権限を即座に閉じ（`Claim.active_run_id` を `null` へ解放し、`Claim.run_seq` を `+1`）、閉じた `Run.id` からの後着結果・業務状態更新を拒否する。
   - [定義] 独立した `Execution` や `Attempt` オブジェクトを別途設けず、`Run` を実行試行の正本として統一する。
   - [必須] すべての作業主体による実行を同じ `Run` 形式で記録する。
-- [必須] **待機・実行制御情報**：待機中の制御情報（待機中の Job ID、待機対象の参照、解除条件、待機開始時刻、再開位置、タイムアウト、`session_id`、Run 識別子）は Job に複雑構造として追加せず、`Run`（`wait` 領域等）および実行管理側で保持する。
+- [必須] **待機・実行制御情報**：待機中の制御情報（待機中の Job ID、待機対象の参照、解除条件、待機開始時刻、再開位置、タイムアウト、`session_id`、Run 識別子、および解消・解除時の `resolved` 時刻）は Job に複雑構造として追加せず、`Run`（`wait` 領域等）および実行管理側で保持する。
   - [必須] `waiting` 解除後は現在の未完了 Job のみから一方向に続行し、古い `Run`（閉じた `Run.id`）や旧 `generation` からの状態更新を拒否する。
-  - [必須] 別 Ticket の結果を待つ場合も、`depends` と `Run.wait` を合わせた完了依存グラフに循環が存在しないことを保証する。
+  - [必須] 別 Ticket の結果を待つ場合も、第7節の完了依存グラフ（`depends` と未解決 `Run.wait`）に循環が存在しないことを保証する。
 - [定義] **複合スクリプトと副作用管理**：複合スクリプトは Ticket 単位で管理する。
   - [定義] 細かな内部関数やコマンドすべてを個別の Job として定義する必要はないが、各 Job の完了判定には確認可能な証拠が必要。
   - [必須] 複合スクリプト内の外部操作待ちも通常の `waiting` で扱い、待機対象の Worker 種別は問わない。
@@ -299,27 +308,33 @@
 ### 8.2. Execution Claim（実行権の正本）と generation フェンシング
 
 - [定義] **Execution Claim**：Ticket 単位（一意キー：`ticket_id`）の実行権の正本。
-  - [必須] `task_id`・`ticket_id`・`owner_id`・`session_id`（`active` 以外は `null`）・`active_run_id`（現在有効な単一試行の `Run.id`、未実行・終了・非 `active` 時は `null`）・`generation`・`state`（`unassigned`・`active`・`released`・`revoked`）を持つ。
+  - [必須] `task_id`・`ticket_id`・`owner_id`・`session_id`（`active` 以外は `null`）・`active_run_id`（現在有効な単一試行の `Run.id`、未実行・終了・非 `active` 時は `null`）・`generation`・`run_seq`（試行結合・安全閉鎖・終了のたびに単調増加する実行系列版、初期値 `0`）・`state`（`unassigned`・`active`・`released`・`revoked`）を持つ。
   - [必須] 同一作業系列（`ticket_id`）で同時に実行権を保持できる Session は最大1つとする。独立した別 Ticket は別キー（別 `ticket_id`）の Claim を持ち並列実行できる。
-  - [必須] **`generation` の初期値と増分規則**：Ticket 作成時の初期 Claim（`state: "unassigned"`, `session_id: null`, `active_run_id: null`）の `generation` は正の整数 **`1`** とし、取得・再取得・移譲・解放・失効の切替1回ごとに厳密に **`+1`** 単調増加させる。
+  - [必須] **`generation` の初期値と増分規則**：Ticket 作成時の初期 Claim（`state: "unassigned"`, `session_id: null`, `active_run_id: null`, `run_seq: 0`）の `generation` は正の整数 **`1`** とし、取得・再取得・移譲・解放・失効の切替1回ごとに厳密に **`+1`** 単調増加させる。
   - [必須] **`session_id` と `active_run_id` の整合**：`state` が `unassigned`・`released`・`revoked` のときは必ず `session_id: null` かつ `active_run_id: null` とする。`state` が `active` のときのみ非 `null` の有効な `Session.id`（`Session.worker_id == owner_id`）を持つ。
   - [必須] **Claim の許可遷移と再取得規則**：
     - [必須] `unassigned → active`（初回取得、`generation +1`）：対象 Ticket が非終端かつ過去実行の残存がない場合のみ可。
-    - [必須] `active → active`（同一 Worker 別 Session への安全移譲、`generation +1`、`active_run_id = null`）：旧 Run が `stopped` かつ安全条件成立時のみ原子的 CAS で可。
+    - [必須] `unassigned → revoked`（未取得 Ticket の管理中止等による失効、`generation +1`）：終端 Ticket につき再取得永久禁止。
+    - [必須] `active → active`（同一 Worker 別 Session への安全移譲、`generation +1`、`active_run_id = null`）：全過去 Run が `stopped`・`active_run_id == null`・安全条件成立・`expected_generation` と `expected_run_seq` の一致を満たす場合のみ原子的 CAS で可。
     - [必須] `active → released`（正常解放、`generation +1`）：Session の正常解放または Ticket の `completed` 確定時。
-    - [必須] `active → revoked`（強制失効、`generation +1`）：中止・強制回収・新 Ticket への巻き取り移管時。
+    - [必須] `active → revoked`（強制失効、`generation +1`）：中止・強制回収・新 Ticket への巻き取り予約/移管時。
     - [必須] `released → active`（再取得、`generation +1`）：対象 Ticket が**非終端**かつ過去 Run に未停止（`alive`/`unknown`）や安全未確認が残っていない場合に限り、同一 `owner_id` の Session に許可（終端 Ticket では再取得禁止）。
-    - [必須] `revoked → active`（再取得、`generation +1`）：対象 Ticket が**非終端かつ後続 Ticket へ巻き取り移管済みでない**場合に限り、過去 Run の全停止確認（`stopped`）と安全条件成立のもと同一 `owner_id` の Session に許可。**終端 Ticket（`completed`/`canceled`）または後続 Ticket へ移管済みの Ticket では `revoked` からの再取得を永久禁止**する。
-  - [必須] **実行操作の厳密照合**：Run 開始・状態変更・Run 起因の結果確定・Handoff 更新等の実行操作では、認証済み Session と Owner の参照整合（`Session.worker_id == Ticket.owner_id`）、`claim.state == "active"`、`claim.session_id == session_id`、`claim.generation == generation`、対象 Job、および現行 `Run.id`（`claim.active_run_id`）をすべて照合し、1つでも不一致（閉じた同世代旧 Run・stale Run・復帰した古い Session・無断実行する別 Session）なら拒否する。
-  - [必須] **副作用防止のための外部フェンシング**：外部リソース変更・障害注入等の副作用を防ぐ必要がある操作では、効果の確定側（実行環境・ゲートウェイ・外部更新口）でも失効済み権限（旧 `generation`・失効済み Claim・閉じた `Run.id`）を拒否し、失効前に開始済みの操作が残存し得る場合は安全確認完了まで後続実行を保留することを準拠必須条件とする。
-- [必須] **開始条件と保護**：Run の開始には依存・順序・状態・所有権・実行権（`active` Claim）・排他（`active_run_id == null`）をすべて満たし、原子的操作で新 `Run.id` を `claim.active_run_id` へ結合する。
-  - [必須] 同一 Job への並行再試行要求が同じ停止済み Run を見て複数の Run を起動しないよう、`claim.active_run_id` の原子的設定により有効な試行を1つに限定し、競合する2件目以降を拒否する。
+    - [必須] `released → revoked`（一時解放済み Ticket の管理中止・新 Ticket 巻き取りによる失効、`generation +1`）：終端または後続移管予約済みにつき再取得永久禁止。
+    - [必須] `revoked → active`（再取得、`generation +1`）：対象 Ticket が**非終端かつ後続 Ticket への巻き取り予約・移管済みでない**場合に限り、過去 Run の全停止確認（`stopped`）と安全条件成立のもと同一 `owner_id` の Session に許可。**終端 Ticket（`completed`/`canceled`）または巻き取り予約・移管済みの Ticket では `revoked` からの再取得を永久禁止**する。
+  - [必須] **開始前と開始後の照合分離**：
+    - [必須] **Run 開始・結合前**：認証済み Session（`Session.worker_id == Ticket.owner_id`）、`claim.state == "active"`、`claim.session_id == session_id`、`claim.generation == generation`、対象現在 Job、開始ガード、および空き枠（`claim.active_run_id == null`、または下記「試行権限の安全閉鎖」による解放）を検証し、原子的操作で新 `Run.id` を `claim.active_run_id` へ結合して `claim.run_seq` を `+1` する。
+    - [必須] **開始後の実行更新・結果確定**：認証済み Session（`Session.worker_id == Ticket.owner_id`）、`claim.state == "active"`、`claim.session_id == session_id`、`claim.generation == generation`、対象現在 Job、および**現行 Run の非 `null` 一致（`claim.active_run_id == run.id`）**をすべて照合し、1つでも不一致なら拒否する。
+  - [必須] **同一 Claim 内での試行権限の安全閉鎖（v1.0.0「停止または安全条件」の実現）**：
+    - [必須] 同一計画内の通常再試行および Job 単独中止後の後続 Job 開始に限り、結合中の旧試行 `R1` の `activity` が `stopped` でなく `unknown` であっても、(1) `R1` の試行権限を永久閉鎖して終了結果（`result`）を記録し、(2) 副作用を伴う操作では外部フェンシングにより旧試行の外部影響を確実に無効化でき、かつ残存副作用の疑いがない安全条件を満たすなら、**`Execution Claim` 自体を失効させずに `claim.active_run_id` を `null` へ解放し `claim.run_seq` を `+1`** した上で、同一 `active` Claim（同一 `session_id`・同一 `generation`）へ新 `Run` `R2` を結合できる（副作用残存の疑いがあり安全条件を満たせない場合は停止確認・復旧まで閉鎖・次開始を禁止する）。
+    - [必須] 上記安全閉鎖は同一 Claim 内の通常再試行・後続 Job 開始に限定し、別 Session・別 Worker への**巻き取り**には適用しない（巻き取りでは全過去 Run の `stopped` 確認かつ安全条件の両方必須を維持する）。
+  - [必須] **副作用防止のための外部フェンシング**：外部リソース変更・障害注入等の副作用を防ぐ必要がある操作では、効果の確定側（実行環境・ゲートウェイ・外部更新口）でも失効済み権限（旧 `generation`・失効済み Claim・閉じた同世代 `Run.id`）を拒否し、失効前に開始済みの操作が残存し得る場合は安全確認完了まで後続実行を保留することを準拠必須条件とする。
+- [必須] **開始条件と保護**：
+  - [必須] 同一 Job への並行再試行要求が同じ停止済み Run を見て複数の Run を起動しないよう、`claim.active_run_id == null` の検証と新 `Run.id` の結合・`claim.run_seq +1` を同一競合境界の原子的操作として実行し、競合する2件目以降を拒否する。
   - [必須] 前提 Ticket は `completed`、先行 Job は `completed` または `canceled`。
-  - [必須] Job・Ticket が `todo` または `doing`、Task が保留中・終端ではない。
+  - [必須] 対象 Ticket および現在 Job が `todo` または `doing`、親 Task が保留（`paused`）・終端（`completed`/`canceled`）ではない（親 Task が別 Ticket 起因で `waiting`・`blocked` であっても独立した実行可能 Ticket・Job は開始できる）。
   - [必須] 実行主体の Session は `Ticket.owner_id` と同じ Worker に属し、当該 Ticket の `active` な `Execution Claim` を保持している。
-  - [必須] 同一計画内の通常再試行・再起動には新しい `Run` を使い、前の実行の停止確認**または**副作用重複・旧試行の影響を確実に防げる安全条件（外部フェンシングによる旧試行無効化等）を確認する（v1.0.0 の規則を維持。ただし副作用残存の疑いがあり安全条件を満たせない場合は停止確認・復旧まで開始禁止）。
+  - [必須] 同一計画内の通常再試行・再起動および後続 Job 開始には新しい `Run` を使い、前の実行の停止確認**または**上記「試行権限の安全閉鎖」による安全条件を確認する（v1.0.0 の規則を維持）。
   - [禁止] 監視の再接続や同一操作の再送だけで、別の `Run` として二重登録する。
-  - [必須] 後続 Job の開始前に、前の Job の停止確認**または**副作用の重複を防げる安全条件を確認する（v1.0.0 の規則を維持）。
 - [必須] **回復可能な中断**：同じ計画で再開できる一時障害を計画の破綻と区別する。
   - [必須] 元の `status` が `doing` なら、その状態を維持する。
   - [禁止] Run の終了・切断・失敗だけで Job や Ticket の完了・中止・ブロックを判断する。
@@ -340,7 +355,7 @@
   - [必須] 生存観測（`alive`）の有効期間を定め、最終観測時刻から有効期間を超過した場合は実効値を `unknown` にする。一方、同一 Run で一度確定した `stopped` は終端観測値であり、時間経過で `unknown` に戻さない。
   - [必須] 停止確認（`stopped`）と、停止前に開始された外部操作・障害注入の残存副作用がないことの確認（安全条件）を区別して評価する。
 - [必須] **独立監視による停止証拠記録と業務更新の分離**：実行主体から独立した信頼できる監視機構は、対象 Claim や `Run.id` の試行権限が失効・終了した後であっても、専用の観測記録経路により対象 Run の `activity: "stopped"` と `observed`・停止証拠のみを記録できる（監査記録に監視主体と観測時刻を残す）。旧 Run による業務状態・結果・Handoff の更新経路とは厳格に分離し、後者は常に拒否する。
-- [任意] **activity の許可遷移**：起動前は `unstarted` から `unknown`・`alive`・`stopped` に移る。
+- [任意] **activity の許可遷移**：起動前は `unstarted` から `unknown`・`alive`・`stopped` に移る（実作業開始前に取り消して `unstarted → stopped` とした Run は `started` を持たず終了 `result` のみ持つ）。
   - [任意] 同じ Run では `unknown → alive`・`unknown → stopped`・`alive → unknown`・`alive → stopped` に移る。
   - [禁止] 同じ Run の `stopped → alive`・`stopped → unknown`、起動後の `unstarted` 復帰。
   - [必須] 再起動は新しい `Run` とし、前 Run の履歴を残す。
@@ -351,35 +366,42 @@
 ### 8.4. 巻き取り可否条件と手順
 
 - [必須] **巻き取り可否条件**（過去の実行が残存する場合は、Claim が `revoked` 等で `session_id: null` であっても「未割当」とはみなさず、稼働中・状態不明の拒否ガードを優先する）：
-  - [必須] **未割当**：`Execution Claim` が `unassigned`（または再取得可能な `released`/`revoked`）であり、**かつ対象 Ticket に未停止（`alive`/`unknown`）または安全未確認の過去 Run が残存しない**場合のみ、Handoff 参照可・新規実行権取得可（終端 Ticket 不可、`paused` は明示解除が必要）。
+  - [必須] **未割当**：`Execution Claim` が `unassigned`（または再取得可能な `released`/`revoked`）であり、**かつ対象 Ticket に未停止（`alive`/`unknown`）または安全未確認の過去 Run が残存しない**場合のみ、Handoff 参照可・新規実行権取得可（終端 Ticket・巻き取り予約/移管済み Ticket は不可、`paused` は明示解除が必要）。
   - [必須] **稼働中**（対象 Ticket に `activity: "alive"` の Run が残存、Claim 失効済みであっても同じ）：Handoff 参照は可、巻き取り・再取得は不可。
   - [必須] **`waiting` かつ稼働中**（`status: "waiting"` かつ `activity: "alive"`）：Handoff 参照は可、巻き取りは不可。
-  - [必須] **停止確認済み**（対象 Ticket の過去 Run がすべて `activity: "stopped"`、`waiting` 中の停止確認済みを含む）：Handoff 参照は可、巻き取りは**安全条件成立時のみ可**（停止前に開始された外部操作や副作用の残存が疑われる場合は安全確認・復旧完了まで保留）。
+  - [必須] **停止確認済み**（対象 Ticket の過去 Run がすべて `activity: "stopped"` かつ `active_run_id == null`、`waiting` 中の停止確認済みを含む）：Handoff 参照は可、巻き取りは**安全条件成立時のみ可**（停止前に開始された外部操作や副作用の残存が疑われる場合は安全確認・復旧完了まで保留）。
   - [必須] **状態不明**（対象 Ticket に `activity: "unknown"` の Run が残存、Heartbeat 途絶・Claim 失効済みだが停止未確認を含む）：Handoff 参照は可、巻き取り・再取得は不可。
+- [必須] **切替時の競合境界（陳腐化した安全確認の防止）**：旧実行による新規 Run 開始・試行閉鎖と巻き取りは**同一の競合境界**で排他する。巻き取り確定時は、停止確認・安全確認を行った時点の `expected_generation` および `expected_run_seq`（実行系列版）が現行 Claim の `generation`・`run_seq` と一致し、かつ全過去 Run が `stopped`・`active_run_id == null` であることを原子的に検証する。確認後に同世代で別 Run が開始された場合（その Run が切替前に終了して `active_run_id` が再び `null` に戻った場合を含む）は `run_seq` 不一致により巻き取りを拒否し、古い安全確認の流用を防止する。
 - [必須] **巻き取り手順**（同時巻き取り要求は最大1 Session のみ成功させ、敗者に部分変更を残さない）：
-  - [必須] 1. Task の Handoff および正本（Ticket・Run・Execution Claim・管理履歴）の現在状態を参照する。
-  - [必須] 2. 対象 Ticket の現行および過去の Run を確認し、`alive` または `unknown` の Run が1件でも残存していれば拒否する。
-  - [必須] 3. 全 Run の停止確認済み（`stopped`）と、失効前開始済み操作・副作用残存がない等の安全条件成立を確認する（未確認なら拒否・保留し、Claim・Ticket は一切変更しない）。
-  - [必須] 4. **新 Ticket へ移す巻き取り（別 Worker への巻き取り、または障害で進行不能な場合の再実行）**：期待世代 `expected_generation = g` と冪等識別子 `operation_id` を条件とし、以下の(a)〜(d)を**単一の原子的確定**、または旧 Claim の CAS（`g → g + 1`）と同時に永続的な巻き取り予約（`takeover`: `operation_id`・`claimant_session_id`・`target_owner_id`・`successor_ticket_id`）を記録して**永続的に復旧可能な手続**として実行する。
-    - [必須] (a) 旧 Ticket `T` の Claim を `state: "revoked"`, `session_id: null`, `active_run_id: null`, `generation: g + 1` に確定し、再取得を永久禁止とする。
-    - [必須] (b) 未終端の旧 Ticket `T` を中止理由（`cancel_reason`）付きで `status: "canceled"`（未終端 Job も `canceled`）へ終端化し、旧 Ticket と後続 Ticket による同一残作業の二重実行を防止する。旧 Ticket の `owner_id` は変更しない。
-    - [必須] (c) 新 Worker を `owner_id` とする後続 Ticket `T_new`（`refs` に旧 Ticket `T` を記録）を一意に作成し、`T_new` の新規 Claim を取得する。
-    - [必須] (d) 手順途中でクラッシュした場合、別 Session の競合要求は `generation` 不一致および確定済み `takeover` 予約により拒否し、勝者 Session による同一 `operation_id` の再送または復旧処理は、後続 Ticket `T_new` を厳密に1件だけ冪等に確定・返却する。
-  - [必須] 5. **同一 Worker が別 Session で同一 Ticket を安全に引き継ぐ場合（Claim 移譲）**：旧 Ticket の未完了 Job から安全に継続できる条件を満たすなら、期待世代 `expected_generation = g` の原子的 CAS で旧 Claim を `state: "active"`, `session_id: S_new`, `active_run_id: null`, `generation: g + 1` に更新する。その後、直前 Run の待機条件（`Run.wait`）・再開位置・正本 `resume` を引き継いで状態を再評価し、`paused` 中なら明示解除まで実行を再開せず、残る `waiting`・`blocked` を保持する。待機解除で `doing` へ遷移した場合のみ、新しい `Run` を開始して現在の未完了 Job から一方向に続行する。
+  - [必須] 1. **新 Ticket 移管要求の照合順序（再送冪等性と既存予約衝突の優先判定）**：新 Ticket へ移す巻き取り要求（`operation_id`, `expected_generation`, `expected_run_seq`, `claimant_session_id`, `target_owner_id`）を受理した際は、次の順序で照合する。
+    - [必須] (1a) **同一操作の再送（最優先）**：旧 Claim に同一 `operation_id` かつ同一実質パラメータの `takeover` が既に存在する場合、元の `expected_generation` が現行世代より古くても世代不一致とせず、確定済み（`status: "committed"`）なら既存の確定結果（`successor_ticket_id` 等）をそのまま冪等に返却し、予約中（`status: "reserved"`）なら未完の確定を完了させて結果を返却する（同一 `operation_id` でパラメータが異なる要求は拒否）。
+    - [必須] (1b) **既存予約・確定済み衝突**：旧 Claim に別の `operation_id` の `takeover`（`reserved` または `committed`）が既に存在する場合、提示された世代が現行世代と一致していても「既存予約／確定済み衝突」を根拠に拒否する（正本無変更）。
+  - [必須] 2. 正本（Ticket・全過去 Run・Execution Claim・管理履歴）および Handoff を参照し、`alive`・`unknown` の Run が1件でも残存している、または `active_run_id != null`、または安全条件未成立であれば拒否・保留する（Claim・Ticket 無変更）。
+  - [必須] 3. **新 Ticket へ移す巻き取り（別 Worker への巻き取り、または障害で進行不能な場合の再実行）**：`expected_generation = g` かつ `expected_run_seq = s` の同一競合境界のもとで、以下の(a)〜(d)を**単一の原子的確定**、または旧 Claim の CAS（`g → g + 1`）と同時に永続予約 `takeover`（`status: "reserved"`）を記録する**永続復旧可能な手続**として実行する。
+    - [必須] (a) 旧 Ticket `T` の Claim を `state: "revoked"`, `session_id: null`, `active_run_id: null`, `generation: g + 1` に確定し、`takeover`（`operation_id`・`claimant_session_id`・`target_owner_id`・`successor_ticket_id`・`status`）を記録する。**予約時点（`reserved`）から旧 Ticket `T` の再取得を永久禁止**とする。
+    - [必須] (b) 未終端の旧 Ticket `T` を中止理由（`cancel_reason`）付きで `status: "canceled"`（未終端 Job も `canceled`）へ終端化する（旧 Ticket の `owner_id` は変更せず、既に `revoked` 済みの旧 Claim を二重失効・追加世代加算しない）。
+    - [必須] (c) `target_owner_id` を `owner_id` とする後続 Ticket `T_new`（ID=`successor_ticket_id`、`refs` に旧 Ticket `T` を記録）を一意に作成し、`T_new` の Claim を準備した上で `takeover.status` を `"committed"` とする。勝者 Session（`claimant_session_id`）が生存中の適格 Session（`worker_id == target_owner_id`）であれば初回取得（`unassigned(gen=1) → active(gen=2)`）を行い、終了済みまたは不適格であれば `T_new` の Claim に誤結合せず **`unassigned(gen=1)` のまま維持**する。
+    - [必須] (d) **予約勝者が永久に戻れない場合の復旧**：`takeover.status == "reserved"` のまま勝者 Session が終了し復帰不能となった場合は、権限を持つ認可済み復旧主体（監査記録必須）が、永続化された同一の `takeover` 予約（同一 `operation_id`・同一 `successor_ticket_id`・同一 `target_owner_id`）に従って (b) 旧 Ticket `T` の `canceled` 終端化と (c) 後続 Ticket `T_new` の一意確定を完了させ、後続 Claim は生存する適格 Session が取得するまで `unassigned(gen=1)` とする（終了済み勝者 Session に新 Claim を付けない）。
+  - [必須] 4. **同一 Worker が別 Session で同一 Ticket を安全に引き継ぐ場合（Claim 移譲）**：同一競合境界で `expected_generation = g`・`expected_run_seq = s`・全過去 Run `stopped`・`active_run_id == null`・安全条件成立を検証し、原子的 CAS で旧 Claim を `state: "active"`, `session_id: S_new`, `active_run_id: null`, `generation: g + 1` に更新する。その後、対象 Ticket・現在 Job の状態に応じて次のとおり処理する：
+    - [必須] (4a) **未解決の待機（`waiting`）がある場合**：直前 Run の待機条件（`Run.wait`）・再開位置・正本 `resume` を引き継いで状態を再評価し、待機未成立なら `waiting` 維持（新規作業開始禁止）、証拠により `criteria` 成立なら完了確定、待機解除で `doing` へ遷移した後に新 `Run` を開始する。
+    - [必須] (4b) **`paused`・`blocked` がある場合**：`paused` は明示解除まで実行再開を禁止し、`blocked` は実課題解消確認まで開始を禁止する。
+    - [必須] (4c) **待機・保留・障害がいずれもなく既に実行可能な状態（`todo` または `doing`）である場合**：第8.2節の開始前照合に従い新しい `Run` を原子的に結合（`active_run_id = R_new`, `run_seq +1`）して、現在の未完了 Job から一方向に続行する。
 
 ## 9. Handoff と長期知識
 
 ### 9.1. Task 所属の揮発性 Handoff
 
 - [定義] **Handoff**：`Task` に所属する揮発性の単一スロット（Task ごとに最大1つ）。
-  - [必須] 少なくとも `task_id` と更新鮮度管理用の単調増加世代 `revision` を持ち、状況に応じて `current_ticket_id`・`owner_id`・`active_session_id`・`current_job_id`・`source_generation`・`activity`・`context`（および `stop_position`・`blockers`・`notes`・`updated` 等）を保持する。
+  - [必須] 少なくとも `task_id`、揮発スロット側の書込連番 `revision`、および**消失をまたいで比較可能な永続正本側の単調確定版 `source_revision`** を持ち、状況に応じて `current_ticket_id`・`owner_id`・`active_session_id`・`current_job_id`・`source_generation`・`activity`・`context`（および `stop_position`・`blockers`・`notes`・`updated` 等）を保持する。
   - [必須] Task への参照権限を持つ複数の Session が同時に閲覧できる。
   - [必須] 閲覧権限と実行権限を厳格に分離し、Handoff を閲覧できることを実行権の保持と同一視しない。
   - [禁止] Handoff 自体にコマンド実行機能や状態遷移を直接引き起こす実行権限を持たせる。
   - [定義] **揮発性**：Handoff は正本から得られる現在状況の要約表示と揮発性の補足キャッシュであり、正式な監査履歴・成果物・再開条件の正本としない。
-  - [必須] Handoff は必要に応じて再生成・破棄でき、Handoff が消失しても Task の状態、Ticket の履歴、Job の達成結果、Ticket の中止理由、Artifact、正本 `resume`、Run 履歴（`wait` 含む）、Execution Claim、管理履歴は失われず、正本のみから再開判断と Handoff 再生成を行える。
+  - [必須] Handoff は必要に応じて再生成・破棄でき、Handoff が消失しても Task の状態、Ticket の履歴、Job の達成結果、Ticket の中止理由、Artifact、正本 `resume`、Run 履歴（`wait` 含む）、Execution Claim、管理履歴（および永続正本側の単調確定版）は失われず、正本のみから再開判断と Handoff 再生成を行える。
   - [必須] Task 内の無関係な Ticket の並列実行を Handoff によって遮ったり直列化したりしない。
-  - [必須] **更新照合と鮮度・単調性**：Session による Handoff 更新は、表示対象 `current_ticket_id` の `active` な `Execution Claim`（`session_id`・最新 `generation`）との一致を検証し、さらに `revision`（および同一 Ticket からの更新では `source_generation`）の単調性を検証して、遅延更新や古いスナップショットからの再生成が現行表示を上書きしないことを保証する。
+  - [必須] **更新認可と消失横断の鮮度比較（Session 更新 vs 管理再生成）**：
+    - [必須] **Session による更新**：認証済み Session（`Session.worker_id == Ticket.owner_id`）、表示対象 `current_ticket_id` の `active` Claim（`session_id`・最新 `generation`）、Run 結合中なら現行 `active_run_id` の一致を検証する。さらに提示された `source_revision` が永続正本側の現行確定版および現行 Handoff の `source_revision` より古くないこと（同一 `source_revision` なら `revision` が単調増加すること）を検証し、消失前の古いスナップショットがより大きい `revision` を付けて遅延到着しても確実に拒否する。
+    - [必須] **正規の管理再生成（Claim 不要）**：権限を持つ管理・システム主体として認可された処理が、永続正本の最新確定版（最新 `source_revision`）を原子的に読み取って Handoff スロットを構築・更新する。管理再生成は閲覧キャッシュの再構築のみを行い、いかなる Session にも実行権を付与せず正本状態を変更しない。現行スロットより古い `source_revision` に基づく再生成書き込みは拒否する。
   - [必須] Ticket 終了時に正式な成果・結果・状態を永続化し、Handoff を長期記憶として扱わない。
 
 ### 9.2. Project の長期知識
@@ -431,23 +453,23 @@
 
 - [任意] **保存形式**：意味と参照を保てれば、保存先・データ構造・UI 等を選べる。
   - [禁止] 特定の保存期間や自動削除を規格として強制する。
-- [必須] **管理記録**：作成・状態変更・開始・結果・中止・異常停止・実行権取得および失効・巻き取り・依存変更・範囲変更・期限変更・知識の採用・独立監視による停止確認・管理/評価/証拠取り込み操作を追跡する。
-  - [必須] 変更前後・主体（`worker_id`・`session_id`、または管理・監視主体）・時刻・理由・確定世代と関連する実行（`run`・`generation`）を識別する。
+- [必須] **管理記録**：作成・状態変更・開始・結果・中止・異常停止・試行権限の安全閉鎖・実行権取得および失効・巻き取り（予約・確定・復旧）・依存変更・範囲変更・期限変更・知識の採用・独立監視による停止確認・管理/評価/証拠取り込み操作を追跡する。
+  - [必須] 変更前後・主体（`worker_id`・`session_id`、または管理・復旧・監視主体）・時刻・理由・確定世代と関連する実行（`run`・`generation`）を識別する。
   - [任意] 時刻・世代等は更新手段が補完する。
   - [禁止] 補完できない事実を捏造する。
-- [必須] **整合性**：現在状態・実行権・現行 Run 結合・管理情報・履歴を原子的に確定する。
+- [必須] **整合性**：現在状態・実行権・現行 Run 結合（`active_run_id`・`run_seq`）・管理情報・履歴を原子的に確定する。
   - [禁止] 同じ操作の再送で状態変更や副作用を二重確定する。
-  - [禁止] 古い Run（閉じた `Run.id`）・失効した実行権・旧 `generation`・競合した世代から業務状態を更新する。
+  - [禁止] 古い Run（閉じた `Run.id`）・失効した実行権・旧 `generation`・競合した世代・陳腐化した `run_seq` から業務状態を更新する。
   - [任意] 無効な結果を状態へ反映せず監査記録に残す。
 - [必須] **確認結果**：成果と検証を一度記録し、親では参照する。
   - [禁止] 記録で分かる結果や管理情報を各階層へ転記させる。
 - [必須] **準拠**：本書のすべての [必須] と [禁止] を満たす。
   - [必須] 部分適用では未対応範囲を示す。
   - [禁止] JSON や Skill だけで永続化・原子性・排他・外部副作用防止を保証したと称する。
-- [必須] **適合確認**：所有権・Session 分離・現行 Run 一意結合・Job の `status`/`result` 分離・依存循環拒否（`depends`＋`Run.wait` 混在含む）・Handoff の揮発性と権限分離・`Execution Claim` の `generation` フェンシング・外部フェンシング・巻き取り可否と途中停止復旧・管理/評価/証拠取り込み認可・保留解除時の再評価・Worker 非依存性を合わせて検証する。
+- [必須] **適合確認**：所有権・Session 分離・Run 開始前/開始後の照合分離・試行安全閉鎖・Job の `status`/`result` 分離・依存循環拒否（`depends`＋未解決 `Run.wait` 混在および逆向き競合登録含む）・Handoff の消失横断鮮度比較と管理再生成認可・`Execution Claim` の `generation`/`run_seq` フェンシング・外部フェンシング・巻き取り可否と途中停止/勝者永久離脱復旧・管理/評価/証拠取り込み認可・保留解除時の再評価・Worker 非依存性を合わせて検証する。
   - [必須] 全 Job 終端時の Ticket 完了と、Ticket 自身の中止優先を確認する。
   - [必須] 中止 Job を含む Ticket の処理終了や Ticket 完了数と、Task の目標達成を区別する。
-  - [必須] 同一 Worker の別 Session 無断実行、同世代の閉じた旧 Run 結果、稼働中・状態不明・失効後残存の巻き取り、同時巻き取りの多重成功、旧 `generation` からの復帰更新および外部更新確定を拒否する。
-  - [必須] Handoff 消失および再起動後も Task・Ticket・Job・中止理由・Artifact・正本 `resume`・Run・Execution Claim の正式履歴から再開判断できることを確認する。
+  - [必須] 同一 Worker の別 Session 無断実行、同世代の閉じた旧 Run 結果、稼働中・状態不明・失効後残存の巻き取り、切替前に新 Run が介入した巻き取り、同時巻き取りの多重成功、旧 `generation` からの復帰更新および外部更新確定を拒否する。
+  - [必須] Handoff 消失および再起動後も Task・Ticket・Job・中止理由・Artifact・正本 `resume`・Run・Execution Claim の正式履歴から再開判断でき、消失前スナップショットの遅延適用が拒否されることを確認する。
   - [必須] 独立した Ticket の並列実行と、次 Ticket 未作成での終了 Ticket アーカイブが妨げられないことを確認する。
   - [必須] 短期の揮発性 Handoff と、採用中（`active`）および過去（`supersed`）の長期知識を区別して参照できる。
