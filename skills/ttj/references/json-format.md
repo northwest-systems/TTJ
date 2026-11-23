@@ -7,7 +7,7 @@
 - [定義] 同じ文書の子レコードは同じ版として扱い、各レコードへの転記は不要。
 - [任意] `protocol` は生成側で補完し、以下の項目一覧では共通の記載を繰り返さない。
 - [任意] 各レコードを別ファイル・別形式で保存する。
-- [必須] Project・Task・Ticket・Job・Run の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-` の接頭辞で始める。
+- [必須] Project・Task・Ticket・Job・Run・Worker の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-` の接頭辞で始める。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
 - [定義] `criteria` は Task・Job の完了を確認する条件の一覧。
@@ -20,7 +20,7 @@
 
 ## 1. Worker
 
-- [必須] `id: string`：Worker を一意に識別する不変の識別値。
+- [必須] `id: string`：Worker を一意に識別する不変の識別値（接頭辞 `wkr-` 必須）。
 - [必須] `name: string`：変更可能な表示名。
 - [禁止] `owner_type` や `human`・`bot`・`agent`・`ai`・`service` 等の種別分類を必須項目として追加する。
 - [定義] 認証情報や実行環境設定は外部 Adapter 側で管理する。
@@ -28,7 +28,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "worker-alpha",
+  "id": "wkr-alpha",
   "name": "Alpha"
 }
 ```
@@ -36,7 +36,7 @@
 ## 2. Session
 
 - [必須] `id: string`：Session を一意に識別する値。
-- [必須] `worker_id: string`：この Session が属する `Worker.id`。
+- [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。
 - [任意] `started: string`：開始時刻（タイムゾーン付き ISO 8601）。
 - [任意] `ended: string`：終了時刻（終了済みの場合）。
 - [定義] 同じ Worker が複数 Session を持て、各 Session を個別に識別する。
@@ -45,7 +45,7 @@
 {
   "protocol": "TTJ/1.1.0",
   "id": "session-alpha-01",
-  "worker_id": "worker-alpha",
+  "worker_id": "wkr-alpha",
   "started": "2026-01-01T01:00:00Z"
 }
 ```
@@ -98,7 +98,7 @@
 
 - [必須] `id: string`：Ticket の識別値（接頭辞 `tkt-` 必須）。
 - [必須] `task: string`：所属する Task の ID（`tsk-*`）。
-- [必須] `owner_id: string`：存在する単一の `Worker.id`。確定後の変更は禁止。
+- [必須] `owner_id: string`：存在する単一の `Worker.id`（`wkr-*`）。確定後の変更は禁止。
 - [必須] `objective: string`：達成したい目標。
 - [必須] `jobs: array<string>`：Job の ID（`job-*`）を実行順に1件以上並べる。確定後は固定。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。
@@ -115,7 +115,7 @@
   "protocol": "TTJ/1.1.0",
   "id": "tkt-create-invitation",
   "task": "tsk-prepare-invitation",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "objective": "案内文の初稿を作成し確認準備を整える",
   "jobs": [
     "job-write-invitation",
@@ -150,7 +150,7 @@
 }
 ```
 
-- [例] 次は別 Worker（`worker-beta`）が担当するレビュー Ticket 内のレビュー Job が、差し戻し判定で完了した例。`status`（完了）と `result`（差し戻し）を分離して表現する。
+- [例] 次は別 Worker（`wkr-beta`）が担当するレビュー Ticket 内のレビュー Job が、差し戻し判定で完了した例。`status`（完了）と `result`（差し戻し）を分離して表現する。
 
 ```json
 {
@@ -201,7 +201,7 @@
   "ticket": {
     "id": "tkt-deploy-staging-01",
     "task": "tsk-prepare-invitation",
-    "owner_id": "worker-alpha",
+    "owner_id": "wkr-alpha",
     "status": "canceled",
     "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
     "artifacts": [
@@ -237,7 +237,7 @@
   "protocol": "TTJ/1.1.0",
   "id": "tkt-revise-invitation-02",
   "task": "tsk-prepare-invitation",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "objective": "レビュー指摘を反映して案内文を修正する",
   "jobs": [
     "job-apply-review-fixes",
@@ -279,7 +279,7 @@
 - [必須] `id: string`：実行試行を識別する ID（接頭辞 `run-` 必須）。
 - [必須] `ticket_id: string`：所属する Ticket の ID（`tkt-*`）。
 - [必須] `job: string`：実行した Job の ID（`job-*`）。
-- [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
+- [必須] `owner_id: string`：当該 Ticket の `Worker.id`（`wkr-*`）。
 - [必須] `session_id: string`：実行を担当する単一の `Session.id`。
 - [必須] `generation: integer`：`Execution Claim` のフェンシング世代番号（正の整数）。
 - [必須] `started: string`（条件付き必須）：実作業の開始を確定した Run では開始時刻（ISO 8601）を必須記録する。起動前予約（`activity: "unstarted"`）のまま、または実作業を開始せずに取り消して `stopped` 等で終了閉鎖した Run には開始事実がないため、`started` を省略できる。
@@ -296,7 +296,7 @@
   "id": "run-staging-apply-01",
   "ticket_id": "tkt-deploy-staging-01",
   "job": "job-apply-staging",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
   "started": "2026-01-01T01:00:00Z",
@@ -321,7 +321,7 @@
   "id": "run-write-invitation-01",
   "ticket_id": "tkt-create-invitation",
   "job": "job-write-invitation",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
   "started": "2026-01-01T01:00:00Z",
@@ -340,7 +340,7 @@
   "id": "run-staging-apply-00",
   "ticket_id": "tkt-deploy-staging-01",
   "job": "job-apply-staging",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "session_id": "session-alpha-01",
   "generation": 2,
   "ended": "2026-01-01T00:55:00Z",
@@ -355,7 +355,7 @@
 - [定義] `Execution Claim` は Ticket 単位（一意キー：`ticket_id`）の実行権の正本であり、`generation` によるフェンシング、現行試行 `active_run_id` の結合、および実行系列版 `run_seq` を持つ。
 - [必須] `task_id: string`：所属 Task の ID（`tsk-*`）。
 - [必須] `ticket_id: string`：対象 Ticket の ID（`tkt-*`、Claim の一意キー）。
-- [必須] `owner_id: string`：当該 Ticket の `Worker.id`。
+- [必須] `owner_id: string`：当該 Ticket の `Worker.id`（`wkr-*`）。
 - [必須] `session_id: string | null`：現在実行権を保持する単一の生存する適格 `Session.id`（`state` が `active` 以外のときは必ず `null`）。
 - [必須] `active_run_id: string | null`：現在有効な単一試行の `Run.id`（`run-*`、未実行・試行終了・`state` が `active` 以外のときは必ず `null`）。
 - [必須] `generation: integer`：初期値 `1`（`unassigned` 作成時）から、状態切替（取得・再取得・移譲・解放・失効）のたびに厳密に `+1` 単調増加する正の整数（確定済み世代は巻き戻さない）。
@@ -371,7 +371,7 @@
   "protocol": "TTJ/1.1.0",
   "task_id": "tsk-prepare-invitation",
   "ticket_id": "tkt-create-invitation",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "session_id": "session-alpha-01",
   "active_run_id": "run-write-invitation-01",
   "generation": 2,
@@ -388,7 +388,7 @@
   "protocol": "TTJ/1.1.0",
   "task_id": "tsk-prepare-invitation",
   "ticket_id": "tkt-deploy-staging-01",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "session_id": null,
   "active_run_id": null,
   "generation": 3,
@@ -398,7 +398,7 @@
   "takeover": {
     "operation_id": "op-takeover-staging-01",
     "claimant_session_id": "session-beta-01",
-    "target_owner_id": "worker-beta",
+    "target_owner_id": "wkr-beta",
     "successor_ticket_id": "tkt-deploy-staging-02"
   }
 }
@@ -411,7 +411,7 @@
 - [必須] `revision: integer`：揮発スロット側の書込連番（同一スロット・同一 `source_revision` 内で単調増加する正の整数）。
 - [必須] `source_revision: integer`：揮発スロットの消失をまたいで鮮度を比較できる永続正本側の単調確定版（正の整数）。さらに同一 `source_revision` であっても、スロット消失・再生成前に準備された旧書込みは新スロットを上書きできない（[規格本文](specification.md) 第9.1節）。
 - [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID（`tkt-*`）。
-- [任意] `owner_id: string | null`：対象 Ticket の `Worker.id`。
+- [任意] `owner_id: string | null`：対象 Ticket の `Worker.id`（`wkr-*`）。
 - [任意] `active_session_id: string | null`：対象 Ticket の実行権を持つ、または直近の `Session.id`。
 - [任意] `current_job_id: string | null`：現在 Job の ID（`job-*`）。
 - [任意] `source_generation: integer`：表示対象 `current_ticket_id` の `Execution Claim` 世代。
@@ -431,7 +431,7 @@
   "revision": 5,
   "source_revision": 12,
   "current_ticket_id": "tkt-revise-invitation-02",
-  "owner_id": "worker-alpha",
+  "owner_id": "wkr-alpha",
   "active_session_id": "session-alpha-02",
   "current_job_id": "job-apply-review-fixes",
   "source_generation": 2,
@@ -504,7 +504,7 @@
   "event": "status.changed",
   "from": "todo",
   "to": "doing",
-  "worker_id": "worker-alpha",
+  "worker_id": "wkr-alpha",
   "session_id": "session-alpha-01",
   "timestamp": "2026-01-01T01:00:00Z",
   "reason": "開始条件と Execution Claim（generation=2）を確認した",

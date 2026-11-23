@@ -11,7 +11,7 @@ TTJ 1.1.0 の禁止事項 #18 に従い、責務を次の2層に厳格分離す�
 
 | 層 | 責務 | 禁止事項 |
 |---|---|---|
-| **TTJ Core** | Project / Task / Ticket / Job / Run（ID 接頭辞 `pj-` / `tsk-` / `tkt-` / `job-` / `run-`） / Worker / Session / Execution Claim / Handoff / Knowledge のデータモデル、公開契約、状態遷移、不変条件、`generation`/`run_seq` フェンシング | Orca 専用 Run ID・Orchestration Task ID・Session 型・Bot 種別・Orca 固有状態遷移・API 接続処理をコア仕様やコア公開契約へ組み込むこと |
+| **TTJ Core** | Project / Task / Ticket / Job / Run / Worker（ID 接頭辞 `pj-` / `tsk-` / `tkt-` / `job-` / `run-` / `wkr-`） / Session / Execution Claim / Handoff / Knowledge のデータモデル、公開契約、状態遷移、不変条件、`generation`/`run_seq` フェンシング | Orca 専用 Run ID・Orchestration Task ID・Session 型・Bot 種別・Orca 固有状態遷移・API 接続処理をコア仕様やコア公開契約へ組み込むこと |
 | **Orca Adapter（外部層）** | TTJ 概念と Orca 概念の対応付け（`ExternalBinding`）、認証・実行環境設定の保持、Dispatch 起動・独立監視、ゲートウェイ側での旧 `generation`・閉じた `Run.id` 失効強制、Handoff 参照 UI 連携 | TTJ の業務完了判定や巻き取り可否判定をバイパスすること、Orca の稼働表示のみで安全巻き取りを許可すること |
 
 ---
@@ -24,7 +24,7 @@ TTJ 1.1.0 の禁止事項 #18 に従い、責務を次の2層に厳格分離す�
 | `Ticket` | Orca `Orchestration Task` | 単一 Worker が責任を持つ一方向の作業単位。別 Worker への依頼や修正・再実行は新しい `Orchestration Task`（新 Ticket）として起票する |
 | `Job` | `Orchestration Task` 内の作業工程（ステップ） | Ticket 確定後は固定列。`status` と `result` を分離し、`criteria` に基づく証拠で完了判定する。Job 単独中止時は確定と同時に結合中 `Run` の試行権限を即時無効化する |
 | `Run`（TTJ 実行試行） | Orca `Dispatch` | Job の1回の実行試行に対応。待機制御情報（`wait`、解消時 `resolved`）と観測状態（`activity`, `observed`）を保持する。終了確定・単独中止・安全閉鎖時にその `Run.id` の試行権限を即座に閉じる（`active_run_id = null`, `run_seq +1`） |
-| `Worker` | 外部識別子（External Worker ID） | 人間オペレーター・既存 Orca Bot・Orchestration Worker のいずれであっても TTJ 上は同一の `Worker`（`id`, `name`）として扱い、`owner_type` 等で業務分岐しない |
+| `Worker` | 外部識別子（External Worker ID） | 人間オペレーター・既存 Orca Bot・Orchestration Worker のいずれであっても TTJ 上は同一の `Worker`（`id`: `wkr-*`, `name`）として扱い、`owner_type` 等で業務分岐しない |
 | `Session` | Orca `Session` | 同一 Worker に複数 Orca Session が存在し得るが、TTJ 上は個別の `Session.id` として識別し、同一作業系列の実行権を共有させない。終了済み Session には新 `active` Claim を決して付与しない |
 | `Execution Claim` | TTJ Core が Ticket 単位（キー：`ticket_id`）で正本を保持 | `generation`（初期値 `1`、切替1回ごとに `+1`、非巻戻し）、現行試行 `active_run_id`、実行系列版 `run_seq`（初期値 `0`、結合/無効化/閉鎖ごとに `+1`）を保持。Orca 側ディスパッチャ／ゲートウェイは失効済み権限からの外部副作用を確定側で必須遮断する |
 | `Handoff` | TTJ Core（Task 所属の揮発性単一スロット） | Orca UI・コーディネータ・他 Session は TTJ Core の Handoff（更新 3 経路分離・`source_revision` 鮮度およびスロットインスタンス照合付き）を参照・表示するのみ。Handoff 閲覧は実行権を意味せず、再開に必須な条件は正本へ残す |
@@ -74,7 +74,7 @@ Orca 環境では、常駐型の既存 Orca Bot と、オンデマンドに起�
 
 ### 5.1 `ExternalBinding` の役割
 
-TTJ Core のレコードに Orca 固有の ID や認証情報を直接埋め込まず、Adapter 側が管理する `ExternalBinding` テーブル／ドキュメントで TTJ ID（`pj-*` / `tsk-*` / `tkt-*` / `job-*` / `run-*` 等）と外部 ID を対応付ける。
+TTJ Core のレコードに Orca 固有の ID や認証情報を直接埋め込まず、Adapter 側が管理する `ExternalBinding` テーブル／ドキュメントで TTJ ID（`pj-*` / `tsk-*` / `tkt-*` / `job-*` / `run-*` / `wkr-*` 等）と外部 ID を対応付ける。
 
 ```json
 {
@@ -97,7 +97,7 @@ TTJ Core のレコードに Orca 固有の ID や認証情報を直接埋め込�
 
 ### 5.2 Adapter の主要責務と API 境界
 
-1. **Identity Binding**：Orca の利用者・Bot・Orchestration Worker の外部識別子を TTJ `Worker.id` に、Orca Session を TTJ `Session.id` にマッピングする。認証情報・資格情報は Adapter 側のみで管理する。
+1. **Identity Binding**：Orca の利用者・Bot・Orchestration Worker の外部識別子を TTJ `Worker.id`（`wkr-*`）に、Orca Session を TTJ `Session.id` にマッピングする。認証情報・資格情報は Adapter 側のみで管理する。
 2. **Claim & External Fencing Proxy（準拠必須）**：
    - Dispatch 開始前に TTJ Core の開始前照合で `Execution Claim`（`generation`, `active_run_id == null`, `expected_run_seq`）を検証し、新 `Run.id` を `claim.active_run_id` へ原子的に結合する（`run_seq +1`）。
    - 実行中のツール呼び出し・状態更新・外部リソース更新ゲートウェイに `(ticket_id, session_id, generation, job, run_id)` を添付し、**効果の確定側でも失効済み権限（旧 `generation`・失効済み Claim・閉じた同世代 `run_id`・Job 単独中止で即時無効化された `run_id`）を必須拒否**する。

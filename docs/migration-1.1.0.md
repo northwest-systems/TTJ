@@ -21,9 +21,9 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 | 区分 | 項目 | TTJ 1.0.0 | TTJ 1.1.0 | 変更理由 |
 |---|---|---|---|---|
 | 変更 | プロトコル版 | `protocol: "TTJ/1.0.0"` | `protocol: "TTJ/1.1.0"` | 非互換の変更（`assignee`・`Ticket.handoffs` 廃止、`Worker`/`Session`/`Execution Claim` 追加、ID 接頭辞必須化）を含むマイナー改定（合意済み 1.1.0 方針） |
-| 追加/変更 | エンティティ ID 接頭辞 | 形式任意（例：`study-meetup`, `prepare-invitation` 等） | Project: `pj-`、Task: `tsk-`、Ticket: `tkt-`、Job: `job-`、Run: `run-` の5種類の接頭辞を必須化 | ID 文字列だけでエンティティ種別を一意に判別し、参照誤りやログ・監査追跡時の曖昧さを防ぐため |
+| 追加/変更 | エンティティ ID 接頭辞 | 形式任意（例：`study-meetup`, `prepare-invitation` 等） | Project: `pj-`、Task: `tsk-`、Ticket: `tkt-`、Job: `job-`、Run: `run-`、Worker: `wkr-` の6種類の接頭辞を必須化 | ID 文字列だけでエンティティ種別を一意に判別し、参照誤りやログ・監査追跡時の曖昧さを防ぐため |
 | 変更 | フィールド命名方針 | 1単語推奨 | 1単語推奨＋意味のある連結名（`owner_id`, `worker_id`, `task_id`, `ticket_id`, `session_id`, `active_run_id`, `run_seq`, `current_ticket_id`, `active_session_id`, `current_job_id`, `source_revision`, `cancel_reason`）を統一採用。既存 `project`/`task`/`job`/`target` は維持 | 参照先と識別子の意味を曖昧なく表現し、仕様・JSON・SKILL 間の表記揺れを防ぐため |
-| 追加 | `Worker` | 未定義（`assignee` の任意識別値） | 正式定義（不変 `id`・変更可能 `name`）。種別分類・`owner_type` 禁止 | 作業の責任主体を一意化しつつ、人間・Bot・AI 非依存を徹底するため |
+| 追加 | `Worker` | 未定義（`assignee` の任意識別値） | 正式定義（不変 `id`（接頭辞 `wkr-`）・変更可能 `name`）。種別分類・`owner_type` 禁止 | 作業の責任主体を一意化しつつ、人間・Bot・AI 非依存を徹底するため |
 | 追加 | `Session` | 未定義 | 正式定義（`id`・`worker_id`・`started`・`ended`） | 責任主体（Worker）と実行単位（Session）を分離し、同一 Worker の複数 Session を個別識別するため |
 | 廃止/置換 | 担当モデル | `Ticket.assignee`・`Job.assignee`（配列・継承）、共同作業、同一 Ticket の担当交代 | **廃止**。`Ticket.owner_id`（単一・不変の `Worker.id`）に統一。別 Worker 作業・追加依頼は別 Ticket | 責任境界を一元化し、排他・巻き取り・監査を単純明快にするため |
 | 変更 | `Job` | `instructions`・`criteria`・`assignee`・任意 `result`・`resume` | `instructions`・`criteria`・`resume` を維持、`assignee` を廃止、`status`（進行）と `result`（業務判定・中断・エラー）を明確分離。Job 単独中止確定と同時に結合中 Run の試行権限を即時無効化し、後続開始前の停止/安全確認と分離。独立 `Request`・子 Job・種別分類・待機制御構造を禁止 | Job を機械的・証拠ベースで完了判定できる最小単位に保ち、単独中止直後の外部副作用を防ぐため |
@@ -57,7 +57,7 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 - **破壊的変更（スキーマ・バリデーション）**：
   - `protocol` の受理版を `"TTJ/1.1.0"` へ更新。
-  - Project / Task / Ticket / Job / Run の ID 接頭辞（`pj-` / `tsk-` / `tkt-` / `job-` / `run-`）の必須バリデーション追加。
+  - Project / Task / Ticket / Job / Run / Worker の ID 接頭辞（`pj-` / `tsk-` / `tkt-` / `job-` / `run-` / `wkr-`）の必須バリデーション追加。
   - `Worker`・`Session`・`Execution Claim`（一意キー：`ticket_id`、`active_run_id`・`generation` 初期値 `1`・`run_seq` 初期値 `0`・確定済み `takeover` 含む）の追加と参照整合性検証。
   - `Ticket.assignee`・`Job.assignee`・`Ticket.handoffs` の廃止と、`Ticket.owner_id`（必須・不変）・`Ticket.refs`・`Ticket.cancel_reason`（`canceled` 時必須）・`Ticket.artifacts` の追加。
   - `Run.actor: array<string>` から `Run.owner_id` + `Run.session_id` + `Run.ticket_id` + `Run.wait`（`resolved` 含む）への変更、`started`（実作業開始確定時必須、未起動予約・未起動閉鎖時省略可）および終了時 `result` の条件付き必須化。
@@ -73,7 +73,7 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 1. **安全条件（副作用残存なし）の検証インターフェース**：副作用確認・失効前開始済み外部操作の完了確認・環境復旧完了の具体的証明方式（チェックリスト・外部ヘルスチェック・署名付き確認記録等）は運用・Adapter 実装側で具体化する。
 2. **Ticket テンプレートおよび標準 Job 列の交換形式**：必須機能としてのテンプレート・標準 Job 列の JSON 交換スキーマ標準化が必要になった場合、後続マイナー版で任意拡張として検討する。
-3. **1.0.0 データの移行ツール**：既存 1.0.0 レコード（接頭辞なしの ID、複数 `assignee` を含む Ticket や `Ticket.handoffs`）を 1.1.0（`pj-` / `tsk-` / `tkt-` / `job-` / `run-` 接頭辞付き ID 等）へ機械変換する場合の分割・移行ルールは、移行対象ストレージ実装ごとに定義する。
+3. **1.0.0 データの移行ツール**：既存 1.0.0 レコード（接頭辞なしの ID、複数 `assignee` を含む Ticket や `Ticket.handoffs`）を 1.1.0（`pj-` / `tsk-` / `tkt-` / `job-` / `run-` / `wkr-` 接頭辞付き ID 等）へ機械変換する場合の分割・移行ルールは、移行対象ストレージ実装ごとに定義する。
 
 ---
 
@@ -83,7 +83,7 @@ TTJ `1.0.0` は最小限の記入で作業と知識を継続できる一方、�
 
 | エンティティ | 1.0.0 構成 | 1.1.0 構成（追加・変更・削除） | 役割の整理 |
 |---|---|---|---|
-| **Worker** | （未定義） | **新設**：`id`（必須・不変）, `name`（必須・変更可）。種別・`owner_type` 禁止 | 作業の責任主体。認証・環境設定は外部 Adapter 側 |
+| **Worker** | （未定義） | **新設**：`id`（必須・不変・接頭辞 `wkr-`）, `name`（必須・変更可）。種別・`owner_type` 禁止 | 作業の責任主体。認証・環境設定は外部 Adapter 側 |
 | **Session** | （未定義） | **新設**：`id`（必須）, `worker_id`（必須）, `started`（任意）, `ended`（任意） | 実際の作業実行を識別する単位。同一 Worker が複数保持可 |
 | **Project** | `id`, `name`, `knowledge`（`id`, `status`: `active`/`supersed`, `content`, `basis`, `supersedes`） | **変更**：`id` に接頭辞 `pj-` を必須化（`knowledge` の `active`/`supersed` 綴りは完全維持） | 継続領域と長期知識の正本 |
 | **Task** | `id`, `project`, `objective`, `criteria`, `deadline`, `status`, `resume` | **維持＋責務明確化**：`id` に接頭辞 `tsk-` を必須化。長寿命成果目標。`status`（Run を持たない Task レベルの計画内 `waiting` 含む）・`resume` 維持。揮発性単一スロット `Handoff` が所属（別レコード時は `Handoff.task_id` で結合） | 複数 Ticket の統括・結果集約・最終達成判定 |

@@ -7,7 +7,7 @@
   - [必須] 必要な情報を一度だけ書き、不要な分類や状態機械を増やさない。
 
 ```text
-Worker（責任主体：id / name）── Session（実行単位：id / worker_id）
+Worker（責任主体：id: wkr-* / name）── Session（実行単位：id / worker_id）
                                     │  ▲ Execution Claim（generation フェンシング）
 Project（id: pj-* / 名前を持つ継続領域・長期知識 knowledge）
 └── Task（id: tsk-* / 長寿命の成果目標・criteria・揮発性 Handoff 単一スロット）
@@ -20,8 +20,8 @@ Project（id: pj-* / 名前を持つ継続領域・長期知識 knowledge）
 
 - [必須] **規格の識別**：独立した JSON 文書のルートに `protocol: "TTJ/1.1.0"` を持つ。
   - [定義] 子レコードは同じ版を共有し、転記は不要。
-- [必須] **ID 接頭辞**：Project・Task・Ticket・Job・Run の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-` の接頭辞で始める。
-- [必須] **Worker と Session**：作業の責任主体（`Worker`：`id`・`name`）と実行単位（`Session`：`id`・`worker_id`）を分離する。
+- [必須] **ID 接頭辞**：Project・Task・Ticket・Job・Run・Worker の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-` の接頭辞で始める。
+- [必須] **Worker と Session**：作業の責任主体（`Worker`：`id`（接頭辞 `wkr-`）・`name`）と実行単位（`Session`：`id`・`worker_id`）を分離する。
   - [禁止] `owner_type` の必須化や、Worker 種別による状態遷移の分岐。
   - [必須] 同じ Worker が複数 Ticket・複数 Session を持てるが、同一作業系列の実行権を同時に保持できる Session は最大1つとする。
 - [必須] **Project**：`id`（接頭辞 `pj-`）と意味の分かる `name` を持つ。

@@ -5,7 +5,7 @@
 ## 1. テスト共通前提
 
 - すべての検証対象 JSON 記録はルートに `protocol: "TTJ/1.1.0"` を持つ。
-- Project・Task・Ticket・Job・Run の ID は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-` の接頭辞を持つ（指定外の接頭辞を持つ ID はスキーマ・バリデーションで拒否される）。
+- Project・Task・Ticket・Job・Run・Worker の ID は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-` の接頭辞を持つ（指定外の接頭辞を持つ ID はスキーマ・バリデーションで拒否される）。
 - テスト環境は特定の Agent・Bot・オーケストレーターに依存せず、TTJ Core のデータモデル・公開契約・状態遷移・排他規則のみで検証できること。
 - Ticket 正式作成時の `Execution Claim` 初期状態は `state: "unassigned"`, `session_id: null`, `active_run_id: null`, `generation: 1`, `run_seq: 0` とし、Claim 状態切替 1 回ごとに `generation` が厳密に `+1`（初回取得で `generation: 2`、確定済み世代は非巻戻し）、Run の開始結合・即時無効化・安全閉鎖・終了確定ごとに `run_seq` が `+1` される。
 - 特に **競合**（UC-20, UC-21, UC-26, UC-S01, UC-S02）、**停止・再起動・巻き取り・外部フェンシング**（UC-17, UC-18, UC-19, UC-25, UC-S03）、**非実行経路・保留解除・親 Task 独立性・未起動閉鎖 Run**（UC-S04, UC-S05, UC-S06）、**循環依存と未解決/解消済み待機**（UC-11）、**Worker 非依存性**（UC-03, UC-27）を境界条件まで厳密に観測・検証すること。
@@ -15,41 +15,41 @@
 ## 2. 公式受け入れテストケース（UC-01〜UC-27）
 
 ### UC-01: Worker が Ticket を所有する
-- **前提**：`Project`（`id: "pj-1"`, `name: "Project One"`）、`Worker`（`id: "w-1"`, `name: "Worker One"`）および非終端の `Task`（`id: "tsk-1"`, `project: "pj-1"`）が存在する。
+- **前提**：`Project`（`id: "pj-1"`, `name: "Project One"`）、`Worker`（`id: "wkr-1"`, `name: "Worker One"`）および非終端の `Task`（`id: "tsk-1"`, `project: "pj-1"`）が存在する。
 - **操作**：
-  1. `task: "tsk-1"`, `owner_id: "w-1"`, `jobs: ["job-1"]` を指定して `Ticket`（`id: "tkt-1"`）を正式作成する。
-  2. `w-1.name` を `"Worker One Renamed"` に変更し、`tkt-1.owner_id` を読み取る。
-  3. 存在しない `owner_id: "w-missing"` を指定して別 Ticket の作成を試みる。
+  1. `task: "tsk-1"`, `owner_id: "wkr-1"`, `jobs: ["job-1"]` を指定して `Ticket`（`id: "tkt-1"`）を正式作成する。
+  2. `wkr-1.name` を `"Worker One Renamed"` に変更し、`tkt-1.owner_id` を読み取る。
+  3. 存在しない `owner_id: "wkr-missing"` を指定して別 Ticket の作成を試みる。
 - **期待結果**：
-  - 1 で `tkt-1` が作成され、`tkt-1.owner_id == "w-1"` となる。
-  - 2 で表示名変更後も `tkt-1.owner_id == "w-1"` の参照整合が維持される。
+  - 1 で `tkt-1` が作成され、`tkt-1.owner_id == "wkr-1"` となる。
+  - 2 で表示名変更後も `tkt-1.owner_id == "wkr-1"` の参照整合が維持される。
   - 3 は参照先不在のため拒否される。
 
 ### UC-02: Ticket に複数 Owner を設定
-- **前提**：`Worker` `"w-1"` と `"w-2"`、非終端 `Task` `"tsk-1"`、および `owner_id: "w-1"` の確定済み Ticket `"tkt-1"`（`jobs: ["job-1"]`）が存在する。
+- **前提**：`Worker` `"wkr-1"` と `"wkr-2"`、非終端 `Task` `"tsk-1"`、および `owner_id: "wkr-1"` の確定済み Ticket `"tkt-1"`（`jobs: ["job-1"]`）が存在する。
 - **操作**：
-  1. `owner_id` に複数値（`["w-1", "w-2"]`）を指定して Ticket 作成を試みる。
-  2. 旧仕様の `assignee: ["w-1", "w-2"]` を用いて Ticket 作成を試みる。
-  3. `"tkt-1"` の `owner_id` を `"w-2"` へ変更、または `"job-1"` に個別 Owner `"w-2"` の設定を試みる。
+  1. `owner_id` に複数値（`["wkr-1", "wkr-2"]`）を指定して Ticket 作成を試みる。
+  2. 旧仕様の `assignee: ["wkr-1", "wkr-2"]` を用いて Ticket 作成を試みる。
+  3. `"tkt-1"` の `owner_id` を `"wkr-2"` へ変更、または `"job-1"` に個別 Owner `"wkr-2"` の設定を試みる。
 - **期待結果**：
-  - 1〜3 の操作はいずれも**拒否**され、`"tkt-1".owner_id` は `"w-1"` のまま変更されない。
+  - 1〜3 の操作はいずれも**拒否**され、`"tkt-1".owner_id` は `"wkr-1"` のまま変更されない。
 
 ### UC-03: Worker の種類が未定義
-- **前提**：種別属性（`owner_type`, `type`, `human`/`bot`/`ai`/`agent`/`service` 等）を一切持たない `Worker`（`id: "w-anon"`, `name: "Anon"`）と非終端 `Task` `"tsk-1"` が存在する。
-- **操作**：`"w-anon"` を `owner_id` とする Ticket `"tkt-anon"`（`jobs: ["job-1"]`）を作成し、`Session` `"s-anon-1"`（`worker_id: "w-anon"`）で Claim を取得（`generation: 2`）して `Run` `"run-1"` を結合開始し、確認証拠を記録して `"job-1"` および `"tkt-anon"` を `completed` にする。
+- **前提**：種別属性（`owner_type`, `type`, `human`/`bot`/`ai`/`agent`/`service` 等）を一切持たない `Worker`（`id: "wkr-anon"`, `name: "Anon"`）と非終端 `Task` `"tsk-1"` が存在する。
+- **操作**：`"wkr-anon"` を `owner_id` とする Ticket `"tkt-anon"`（`jobs: ["job-1"]`）を作成し、`Session` `"s-anon-1"`（`worker_id: "wkr-anon"`）で Claim を取得（`generation: 2`）して `Run` `"run-1"` を結合開始し、確認証拠を記録して `"job-1"` および `"tkt-anon"` を `completed` にする。
 - **期待結果**：
   - `owner_type` や種別未定義による拒否は発生せず、作成・Claim 取得・実行・証拠付き完了・Ticket 集約がすべて正常に成功する。
 
 ### UC-04: 同じ Worker が複数 Ticket を所有
-- **前提**：`Worker` `"w-1"` と非終端 `Task` `"tsk-1"` が存在する。
-- **操作**：ともに `owner_id: "w-1"` を持つ独立した 2 件の Ticket（`"tkt-1"`, `"tkt-2"`）を作成する。
+- **前提**：`Worker` `"wkr-1"` と非終端 `Task` `"tsk-1"` が存在する。
+- **操作**：ともに `owner_id: "wkr-1"` を持つ独立した 2 件の Ticket（`"tkt-1"`, `"tkt-2"`）を作成する。
 - **期待結果**：
   - 両方の Ticket 作成および所有が**許可**され、それぞれ独立した `ticket_id` キーの Claim で管理・実行できる。
 
 ### UC-05: 同じ Worker の複数 Session
-- **前提**：`Worker` `"w-1"` が所有する 2 件の独立 Ticket（`"tkt-1"`, `"tkt-2"`）が存在する。
+- **前提**：`Worker` `"wkr-1"` が所有する 2 件の独立 Ticket（`"tkt-1"`, `"tkt-2"`）が存在する。
 - **操作**：
-  1. ともに `worker_id: "w-1"` を持つ 2 つの Session（`"s-1a"`, `"s-1b"`）を作成する。
+  1. ともに `worker_id: "wkr-1"` を持つ 2 つの Session（`"s-1a"`, `"s-1b"`）を作成する。
   2. `"s-1a"` で `"tkt-1"` の `Execution Claim` を取得し、`Run` `"run-1a"` を結合開始して監査イベントを記録する。
   3. `"s-1b"` で `"tkt-2"` の `Execution Claim` を取得し、`Run` `"run-1b"` を結合開始して監査イベントを記録する。
 - **期待結果**：
@@ -57,8 +57,8 @@
 
 ### UC-06: 通常 Job の完了
 - **前提**：2 つの独立フィクスチャを用意する。
-  - **Fixture A（負例：Run 終了・証拠不足）**：Ticket `"tkt-neg"`（`owner_id: "w-1"`, `jobs: ["job-neg-1", "job-neg-2"]`）で Session `"s-1"` が `active` Claim（`generation: 2`）を保持し、`"job-neg-1"` が `doing`（現行 `Run` `"run-neg-1"`）である。
-  - **Fixture B（正例：現行 Run での証拠付き完了と次 Job 進行）**：Ticket `"tkt-pos"`（`owner_id: "w-1"`, `jobs: ["job-pos-1", "job-pos-2"]`）で Session `"s-1"` が `active` Claim（`generation: 2`）を保持し、`"job-pos-1"` が `doing`（現行 `Run` `"run-pos-1"`, `active_run_id == "run-pos-1"`）である。
+  - **Fixture A（負例：Run 終了・証拠不足）**：Ticket `"tkt-neg"`（`owner_id: "wkr-1"`, `jobs: ["job-neg-1", "job-neg-2"]`）で Session `"s-1"` が `active` Claim（`generation: 2`）を保持し、`"job-neg-1"` が `doing`（現行 `Run` `"run-neg-1"`）である。
+  - **Fixture B（正例：現行 Run での証拠付き完了と次 Job 進行）**：Ticket `"tkt-pos"`（`owner_id: "wkr-1"`, `jobs: ["job-pos-1", "job-pos-2"]`）で Session `"s-1"` が `active` Claim（`generation: 2`）を保持し、`"job-pos-1"` が `doing`（現行 `Run` `"run-pos-1"`, `active_run_id == "run-pos-1"`）である。
 - **操作**：
   1. **Fixture A**：`"run-neg-1"` の終了（`ended`・`result: "succeeded"`）のみを記録し、確認可能な証拠なしで `"job-neg-1"` を `completed` にしようとする。
   2. **Fixture B**：現行 `Run` `"run-pos-1"` の結合中に `"job-pos-1"` の `criteria` をすべて満たす確認証拠と `result: "passed"` を記録して `"job-pos-1"` を `completed` に確定し、`"run-pos-1"` の終了・停止確認（または安全条件確認）により `active_run_id: null` とした上で次 Job `"job-pos-2"` の新 Run `"run-pos-2"` を結合開始する。
@@ -83,16 +83,16 @@
   - 完了済み `"job-rev"` の巻き戻し・再開は不可であり、修正対応は新 Ticket（`refs` で `"tkt-rev"` を参照）で進める。
 
 ### UC-09: 別 Worker への作業依頼
-- **前提**：`Worker` `"w-1"` が所有する Ticket `"tkt-1"` の作業中、別 `Worker` `"w-2"` による独立した作業が必要になった。
-- **操作**：同一 Task 配下に `owner_id: "w-2"` の新 Ticket `"tkt-2"` を作成し、`refs`（必要に応じて循環しない `depends`）で関連付ける。
+- **前提**：`Worker` `"wkr-1"` が所有する Ticket `"tkt-1"` の作業中、別 `Worker` `"wkr-2"` による独立した作業が必要になった。
+- **操作**：同一 Task 配下に `owner_id: "wkr-2"` の新 Ticket `"tkt-2"` を作成し、`refs`（必要に応じて循環しない `depends`）で関連付ける。
 - **期待結果**：
-  - `"tkt-1"` の `owner_id` は `"w-1"` のまま変更されず、`"w-2"` の作業は別 Ticket `"tkt-2"` として独立に作成・実行できる。
+  - `"tkt-1"` の `owner_id` は `"wkr-1"` のまま変更されず、`"wkr-2"` の作業は別 Ticket `"tkt-2"` として独立に作成・実行できる。
 
 ### UC-10: 依頼先からの追加依頼
-- **前提**：依頼先 `Worker` `"w-2"` が Ticket `"tkt-2"` を実行中、元の依頼元 `Worker` `"w-1"`（または別 `Worker` `"w-3"`）への追加依頼（補足調査・設定確認等）が発生した。
+- **前提**：依頼先 `Worker` `"wkr-2"` が Ticket `"tkt-2"` を実行中、元の依頼元 `Worker` `"wkr-1"`（または別 `Worker` `"wkr-3"`）への追加依頼（補足調査・設定確認等）が発生した。
 - **操作**：
-  1. 独立した `Request` オブジェクトを作らず、同一 Task 配下に `owner_id: "w-1"` の通常の新 Ticket `"tkt-3"`（`jobs: ["job-extra-check"]`, `refs: [{"ticket_id": "tkt-2", "kind": "derived_from"}]`）を作成する。
-  2. `"w-1"` の Session `"s-1"` が `"tkt-3"` の `Execution Claim` を取得して `Run` `"run-3"` を開始し、`"job-extra-check"` の `criteria` を満たす確認証拠（`artifacts`）と `result: "passed"` を記録して `"job-extra-check"` および `"tkt-3"` を `completed` にする。
+  1. 独立した `Request` オブジェクトを作らず、同一 Task 配下に `owner_id: "wkr-1"` の通常の新 Ticket `"tkt-3"`（`jobs: ["job-extra-check"]`, `refs: [{"ticket_id": "tkt-2", "kind": "derived_from"}]`）を作成する。
+  2. `"wkr-1"` の Session `"s-1"` が `"tkt-3"` の `Execution Claim` を取得して `Run` `"run-3"` を開始し、`"job-extra-check"` の `criteria` を満たす確認証拠（`artifacts`）と `result: "passed"` を記録して `"job-extra-check"` および `"tkt-3"` を `completed` にする。
 - **期待結果**：
   - 追加依頼が独立 `Request` や特殊状態機械なしで通常の Ticket / Job として起票・実行・証拠付き完了でき、`"tkt-2"` 側から `"tkt-3"` の結果・成果物を参照できる。
 
@@ -161,8 +161,8 @@
 
 ### UC-18: 停止確認後の巻き取り
 - **前提**：2 つの独立フィクスチャを用意する。
-  - **Fixture A（同一 Worker 移譲）**：`Worker` `"w-1"` 所有の Ticket `"tkt-a"` に対し、Session `"s-1a"` が Claim（`generation: 2`, `run_seq: 2`, `state: "active"`, `active_run_id: null`）を保持し、全過去 Run（`"run-1a"`）が独立監視により `activity: "stopped"`（終了確定済み）になっている。同一 Worker `"w-1"` の生存する別 Session `"s-2a"` が存在する。
-  - **Fixture B（別 Worker への新 Ticket 移管）**：`Worker` `"w-1"` 所有の未終端 Ticket `"tkt-b"` に対し、Session `"s-1b"` の全過去 Run（`"run-1b"`）が `activity: "stopped"`（終了確定済み、`generation: 2`, `run_seq: 2`, `active_run_id: null`）になっている。別 Worker `"w-2"` の生存 Session `"s-2b"` が存在する。
+  - **Fixture A（同一 Worker 移譲）**：`Worker` `"wkr-1"` 所有の Ticket `"tkt-a"` に対し、Session `"s-1a"` が Claim（`generation: 2`, `run_seq: 2`, `state: "active"`, `active_run_id: null`）を保持し、全過去 Run（`"run-1a"`）が独立監視により `activity: "stopped"`（終了確定済み）になっている。同一 Worker `"wkr-1"` の生存する別 Session `"s-2a"` が存在する。
+  - **Fixture B（別 Worker への新 Ticket 移管）**：`Worker` `"wkr-1"` 所有の未終端 Ticket `"tkt-b"` に対し、Session `"s-1b"` の全過去 Run（`"run-1b"`）が `activity: "stopped"`（終了確定済み、`generation: 2`, `run_seq: 2`, `active_run_id: null`）になっている。別 Worker `"wkr-2"` の生存 Session `"s-2b"` が存在する。
 - **操作**：
   1. Fixture A・B の双方で、副作用残存の疑いがあり安全条件未成立の状態で巻き取りを要求する。
   2. 安全条件成立を確認した上で：
@@ -171,7 +171,7 @@
 - **期待結果**：
   - 1（失敗時）：Fixture A・B ともに巻き取りは**保留・拒否**され、双方の Claim（`generation: 2`, `run_seq: 2`, `session_id`, `state`）および Ticket は一切変化しない。
   - 2（Fixture A 成功時）：`"tkt-a"` の Claim が `generation: 3`, `session_id: "s-2a"`, `active_run_id: null`, `state: "active"` へ更新され、待機・障害のない `doing` Job なら新 Run を開始でき、旧 `"s-1a"`（`generation: 2`）の更新は**拒否**される。
-  - 2（Fixture B 成功時）：`"tkt-b"` は `owner_id: "w-1"` のまま `status: "canceled"`（`cancel_reason` 保存）・Claim `revoked`（`generation: 3`, 再取得永久禁止、二重失効なし）となり、`owner_id: "w-2"` の新 Ticket `"tkt-b2"`（`refs` に `"tkt-b"`）と新 Claim（`unassigned(gen=1) → active(gen=2)`）が一体で確定し、旧 `"s-1b"`（`generation: 2`）の更新は**拒否**される。
+  - 2（Fixture B 成功時）：`"tkt-b"` は `owner_id: "wkr-1"` のまま `status: "canceled"`（`cancel_reason` 保存）・Claim `revoked`（`generation: 3`, 再取得永久禁止、二重失効なし）となり、`owner_id: "wkr-2"` の新 Ticket `"tkt-b2"`（`refs` に `"tkt-b"`）と新 Claim（`unassigned(gen=1) → active(gen=2)`）が一体で確定し、旧 `"s-1b"`（`generation: 2`）の更新は**拒否**される。
 
 ### UC-19: 状態不明の巻き取り
 - **前提**：Ticket `"tkt-1"` の現行 `Run` `"run-1"` について、Heartbeat が途絶し観測有効期間を超過したため実効 `activity` が `"unknown"` になっている（停止確認は未取得）。また Claim 失効済みだが `"run-1"` が `activity: "unknown"` のフィクスチャも用意する。
@@ -213,7 +213,7 @@
   - 4 で Task・Ticket・Job・`cancel_reason`・`artifacts`・正本 `resume`・`Run`・`Execution Claim`・管理履歴は一切失われず、再起動後も正本のみから再開判断を完了できる。
 
 ### UC-23: 次 Ticket 未作成で終了
-- **前提**：継続中の Task `"tsk-1"` 配下に Ticket `"tkt-1"`（`jobs: ["job-1", "job-2"]`, `owner_id: "w-1"`）があり、`"job-1"` は `completed`、最後の Job `"job-2"` が `doing`（現行 `Run` `"run-2"`）である。後続 Ticket は一切作成されていない。
+- **前提**：継続中の Task `"tsk-1"` 配下に Ticket `"tkt-1"`（`jobs: ["job-1", "job-2"]`, `owner_id: "wkr-1"`）があり、`"job-1"` は `completed`、最後の Job `"job-2"` が `doing`（現行 `Run` `"run-2"`）である。後続 Ticket は一切作成されていない。
 - **操作**：
   1. 後続 Ticket を作成しないまま、`"job-2"` の確認証拠と `result: "passed"` を記録して `"job-2"` を `completed` に確定する。
   2. 同時集約後の `"tkt-1"` を正式成果・状態・履歴とともに永続化し、アーカイブ（終了保管）する。
@@ -230,7 +230,7 @@
   - 同一 Task に属することや `Handoff` が単一スロットであることを理由に直列化・拒否されず、`"tkt-a"` と `"tkt-b"` が並列に進行・完了できる。
 
 ### UC-25: `waiting` 中に Session 停止
-- **前提**：Ticket `"tkt-1"`（`owner_id: "w-1"`）の現在 Job `"job-1"` が `status: "waiting"` であり、旧 Session `"s-1"` が実行していた `Run` `"run-1"`（`generation: 2`）が待機制御情報 `wait`（`target`, `condition`, `since`, `resume_point: "step-4"`）を保持している。同一 Worker `"w-1"` の生存する別 Session `"s-2"`（巻き取り要求者）が存在する。
+- **前提**：Ticket `"tkt-1"`（`owner_id: "wkr-1"`）の現在 Job `"job-1"` が `status: "waiting"` であり、旧 Session `"s-1"` が実行していた `Run` `"run-1"`（`generation: 2`）が待機制御情報 `wait`（`target`, `condition`, `since`, `resume_point: "step-4"`）を保持している。同一 Worker `"wkr-1"` の生存する別 Session `"s-2"`（巻き取り要求者）が存在する。
 - **操作**：
   1. `"run-1"` が `activity: "alive"` または `"unknown"`（または終了未確定で `active_run_id == "run-1"`）の状態で、`"s-2"` が巻き取りを要求する。
   2. 独立監視により `"run-1".activity` が `"stopped"`（停止確認済み）となり、かつ `"run-1"` の終了確定（`ended`・`result: "interrupted"`・`claim.active_run_id: null`・`run_seq: 2`）と安全条件成立が揃った状態で、`"s-2"` が巻き取り（Claim 移譲：`expected_generation: 2, expected_run_seq: 2 → generation: 3`）を実行し、`"run-1".wait` を引き継いで状態を再評価する。
@@ -241,18 +241,18 @@
   - 3 で待機未成立の間は `waiting` を維持し（未解除待機中の実作業開始は拒否）、認可済み経路による待機解除後にのみ `"job-1"` を一方向に続行・完了できる。
 
 ### UC-26: 同一 Worker の別 Session による無断実行
-- **前提**：`Worker` `"w-1"` が Ticket `"tkt-1"` の `owner_id` であり、`"w-1"` に属する Session `"s-1a"` が `active` な Claim（`generation: 2`）を保持している。同じ `"w-1"` に属する別 Session `"s-1b"` が存在する。
+- **前提**：`Worker` `"wkr-1"` が Ticket `"tkt-1"` の `owner_id` であり、`"wkr-1"` に属する Session `"s-1a"` が `active` な Claim（`generation: 2`）を保持している。同じ `"wkr-1"` に属する別 Session `"s-1b"` が存在する。
 - **操作**：`"s-1b"` が巻き取り手続を経ずに `"tkt-1"` の Job 開始・状態更新・結果確定・Handoff 更新を試みる。
 - **期待結果**：
-  - 同じ Worker `"w-1"` に属していても、`"s-1b"` は Claim を保持していないためすべての操作が**拒否**される。
+  - 同じ Worker `"wkr-1"` に属していても、`"s-1b"` は Claim を保持していないためすべての操作が**拒否**される。
 
 ### UC-27: 同じ条件で異なる Worker が担当
-- **前提**：異なる外部主体に対応する 2 つの Worker（例：人間オペレーター相当の外部主体に紐づく `"w-alpha"` と、自動化ボット相当の外部主体に紐づく `"w-beta"`。いずれも TTJ 上は `owner_type` 等の種別属性を持たない）および同一内容の `objective`・`criteria`・`jobs` を持つ 2 つの Ticket（`"tkt-a"`, `"tkt-b"`）を用意する。
+- **前提**：異なる外部主体に対応する 2 つの Worker（例：人間オペレーター相当の外部主体に紐づく `"wkr-alpha"` と、自動化ボット相当の外部主体に紐づく `"wkr-beta"`。いずれも TTJ 上は `owner_type` 等の種別属性を持たない）および同一内容の `objective`・`criteria`・`jobs` を持つ 2 つの Ticket（`"tkt-a"`, `"tkt-b"`）を用意する。
 - **操作**：
   1. **正常系比較**：両 Ticket に同一の入力・同一の待機イベント・同一の確認証拠を与え、`todo → doing → waiting → doing → completed`（および `result` 記録）を実行する。
   2. **拒否ガード比較**：両 Ticket に対し、同一の不正操作（証拠なし完了、無権限 Session 実行、稼働中巻き取り、循環 `depends` 登録）をそれぞれ実行する。
 - **期待結果**：
-  - 1 の正常系（許可遷移・達成判定・結果分離・終了集約）および 2 の拒否ガード（拒否結果・状態無変化）の双方が、`"w-alpha"` と `"w-beta"` で完全に同一となる。
+  - 1 の正常系（許可遷移・達成判定・結果分離・終了集約）および 2 の拒否ガード（拒否結果・状態無変化）の双方が、`"wkr-alpha"` と `"wkr-beta"` で完全に同一となる。
 
 ---
 
@@ -260,9 +260,9 @@
 
 ### UC-S01: 同世代旧 Run 拒否・並行再試行の古い前提拒否・同一 Claim 安全閉鎖
 - **前提**：3 つの独立フィクスチャを用意する。
-  - **Fixture A（稼働中並行再試行排他と同世代旧 Run 拒否）**：Ticket `"tkt-1"`（`owner_id: "w-1"`, `jobs: ["job-1"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 2`, `active_run_id: null`）を保持し、最初の試行 `Run` `"run-1"` が停止確認済み（`activity: "stopped"`, `ended`・`result: "interrupted"`）である。
+  - **Fixture A（稼働中並行再試行排他と同世代旧 Run 拒否）**：Ticket `"tkt-1"`（`owner_id: "wkr-1"`, `jobs: ["job-1"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 2`, `active_run_id: null`）を保持し、最初の試行 `Run` `"run-1"` が停止確認済み（`activity: "stopped"`, `ended`・`result: "interrupted"`）である。
   - **Fixture B（空き枠復帰後の古い前提並行再試行拒否）**：Fixture A と同じ初期状態（`"run-1"` 停止済み、`run_seq: 2`、`active_run_id: null`）。
-  - **Fixture C（`unknown` 旧試行の安全閉鎖による同 Claim 再試行および Job 単独中止後続開始）**：Ticket `"tkt-2"`（`owner_id: "w-1"`, `jobs: ["job-2a", "job-2b"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 1`, `active_run_id: "run-unk-1"`）を保持し、`"run-unk-1"` は `activity: "unknown"` だが外部フェンシングで確実に無効化でき残存副作用の疑いがない。
+  - **Fixture C（`unknown` 旧試行の安全閉鎖による同 Claim 再試行および Job 単独中止後続開始）**：Ticket `"tkt-2"`（`owner_id: "wkr-1"`, `jobs: ["job-2a", "job-2b"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 1`, `active_run_id: "run-unk-1"`）を保持し、`"run-unk-1"` は `activity: "unknown"` だが外部フェンシングで確実に無効化でき残存副作用の疑いがない。
 - **操作**：
   1. **Fixture A**：`"run-1"`（`expected_run_seq: 2`）を前提に 2 件の再試行開始要求（`"run-2a"`, `"run-2b"`）をバリア同期で並行発行し、勝者 Run（`"run-2a"`）を敗者（`"run-2b"`）の照合完了まで実行中（`active_run_id == "run-2a"`）に保つ。続いて、同じ `session_id: "s-1"`, `generation: 2` を持つ旧 Run `"run-1"` の遅延結果（`result: "succeeded"`・Job 完了要求）を送信し、対照として独立監視機構が失効後 Run の専用観測経路で `activity: "stopped"` のみを記録する。
   2. **Fixture B**：`"run-1"`（`expected_run_seq: 2`）を前提に同時発行された 2 件の再試行のうち、先着 `"run-2"` が開始（`run_seq: 3`）・終了（`active_run_id: null`, `run_seq: 4`）して空き枠に戻った後に、後着要求（依然 `"run-1"` / `expected_run_seq: 2` を前提とする古い要求）を到達させる。続いて `"run-2"`（`expected_run_seq: 4`）を前提に取り直した正当な再試行要求 `"run-3"` を送信する。
@@ -273,9 +273,9 @@
   - 3 で `run-1` が `unknown` のままでも安全条件成立により Claim を失効させず同 Claim（`generation: 2`）で `"run-unk-2"` および単独中止後続 `"job-2b"` を開始でき、一方別 Session への巻き取りは全過去 Run 停止未確認のため**拒否**される。
 
 ### UC-S02: 単一原子巻き取り契約の障害前後再送・パラメータ検証・競合操作線形化
-- **前提**：未終端の停止済み Ticket `"tkt-1"`（親 Task `"tsk-1"`, `owner_id: "w-1"`, 全過去 Run `stopped`, `active_run_id: null`, 安全条件成立, Claim `generation: 2, run_seq: 2`）を用い、単一原子確定の公開境界に対する以下 5 パターン（独立フィクスチャ）を用意する。
+- **前提**：未終端の停止済み Ticket `"tkt-1"`（親 Task `"tsk-1"`, `owner_id: "wkr-1"`, 全過去 Run `stopped`, `active_run_id: null`, 安全条件成立, Claim `generation: 2, run_seq: 2`）を用い、単一原子確定の公開境界に対する以下 5 パターン（独立フィクスチャ）を用意する。
 - **操作**：
-  1. **Pattern (a) 確定後・応答喪失後の同一要求再送**：別 Worker `"w-2"` の生存 Session `"s-2"` が `(operation_id: "op-a", expected_generation: 2, expected_run_seq: 2, target_owner_id: "w-2", successor_ticket_id: "tkt-2a")` で巻き取りを確定させた直後に応答を喪失させる。`"s-2"` が元の古い `(expected_generation: 2, expected_run_seq: 2)` のまま同一 `operation_id: "op-a"`・同一主体・同一実質パラメータで再送する。
+  1. **Pattern (a) 確定後・応答喪失後の同一要求再送**：別 Worker `"wkr-2"` の生存 Session `"s-2"` が `(operation_id: "op-a", expected_generation: 2, expected_run_seq: 2, target_owner_id: "wkr-2", successor_ticket_id: "tkt-2a")` で巻き取りを確定させた直後に応答を喪失させる。`"s-2"` が元の古い `(expected_generation: 2, expected_run_seq: 2)` のまま同一 `operation_id: "op-a"`・同一主体・同一実質パラメータで再送する。
   2. **Pattern (b) 確定前障害（未確定）の外部不可視性と再送再検証**：巻き取りの確定前に障害を注入し、未確定のまま失敗させる。障害直後に別クライアントから読み取り・実行開始を試み、その後 `"s-2"` が再送する（さらに再送前に前提が変わった場合も検証）。
   3. **Pattern (c) 同一 `operation_id` の主体・実質パラメータ不一致拒否**：Pattern (a) で確定済みの `operation_id: "op-a"` を再利用し、(c1) 別の認可主体（`"s-3"`）から送信、(c2) 同一主体だが `target_owner_id` や後続計画・`cancel_reason` 等の実質パラメータを変えて送信する。
   4. **Pattern (d) 競合別要求・終了済み Session 非付与・世代非巻戻し・切替時 `run-2` 介入拒否**：
