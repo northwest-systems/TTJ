@@ -71,11 +71,11 @@
   - [必須] Task・Job の `criteria` には、完了を確認できる条件を1件以上書く。
   - [禁止] 同じ目標・成果物・確認条件を別の欄へ転記させる。
 - [定義] **識別**：`id` は保存中のレコードを一意に参照する値。
-  - [必須] Project・Task・Ticket・Job・Run・Worker・Session の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞（prefix）で始める。
-  - [必須] Project と Worker は対象を判別できる名称を持つ。
-  - [推奨] ID には接頭辞に続けて対象を判別しやすい短い識別値を使う。
-  - [任意] 指定された接頭辞以降の形式・他レコード（知識・監査記録等）の ID 形式・発行方法・保存先は運用で決める。
-  - [禁止] 同じ ID を複数のレコードへ割り当てる、または Project・Task・Ticket・Job・Run・Worker・Session に指定外の ID 接頭辞を使う。
+  - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞（prefix）に続けて `<接頭辞>-<ID（英数字6桁または8桁）>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
+  - [例] Project: `pj-a1b2c3d4-1`、Task: `tsk-e5f6a7b8-1`、Ticket: `tkt-c9d0e1f2-1`（連番: `tkt-c9d0e1f2-2`）、Job: `job-1a2b3c4d-1`（連番: `job-1a2b3c4d-2`）、Run: `run-5e6f7a8b-1`（連番: `run-5e6f7a8b-2`）、Worker: `wkr-7c8d9e0f-1`（連番: `wkr-7c8d9e0f-2`）、Session: `ssn-2b3c4d5e-1`（連番: `ssn-2b3c4d5e-2`）。
+  - [必須] Project と Worker は対象を判別できる名称（`name`）を持つ。
+  - [任意] 上記7種以外の他レコード（知識・監査記録等）の ID 形式・発行方法・保存先は運用で決める。
+  - [禁止] 同じ ID を複数のレコードへ割り当てる、または Project・Task・Ticket・Job・Run・Worker・Session に指定外の ID 形式・接頭辞を使う。
 - [定義] **記入形式**：各階層はそれぞれ必要な情報だけを持つ。
   - [任意] 別ファイル・別テーブル・別の JSON 形式で保存する。
   - [禁止] 共通化のために全階層へ同じ項目を追加する。
@@ -404,7 +404,7 @@
 - [必須] **準拠**：本書のすべての [必須] と [禁止] を満たす。
   - [必須] 部分適用では未対応範囲を示す。
   - [禁止] JSON や Skill だけで永続化・原子性・排他・外部副作用防止を保証したと称する。
-- [必須] **適合確認**：7種の ID 接頭辞（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Run の正本化・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
+- [必須] **適合確認**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：接頭辞 `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Run の正本化・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
   - [必須] 全 Job 終端時の Ticket 完了と、Ticket 自身の中止優先を確認する。
   - [必須] 中止 Job を含む Ticket の処理終了や Ticket 完了数と、Task の目標達成を区別する。
   - [必須] 同一 Worker の別 Session 無断実行、閉じた旧 Run 結果からの更新、前の実行が稼働中・停止未確認時の引き継ぎを拒否する。

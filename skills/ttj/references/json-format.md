@@ -7,7 +7,7 @@
 - [定義] 同じ文書の子レコードは同じ版として扱い、各レコードへの転記は不要。
 - [任意] `protocol` は生成側で補完し、以下の項目一覧では共通の記載を繰り返さない。
 - [任意] 各レコードを別ファイル・別形式で保存する。
-- [必須] Project・Task・Ticket・Job・Run・Worker・Session の `id` は、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞で始める。
+- [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
 - [定義] `criteria` は Task・Job の完了を確認する条件の一覧。
@@ -20,7 +20,7 @@
 
 ## 1. Worker
 
-- [必須] `id: string`：Worker を一意に識別する不変の識別値（接頭辞 `wkr-` 必須）。
+- [必須] `id: string`：Worker を一意に識別する不変の自動採番 ID（`wkr-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `name: string`：変更可能な表示名。
 - [禁止] `owner_type` や `human`・`bot`・`agent`・`ai`・`service` 等の種別分類を必須項目として追加する。
 - [定義] 認証情報や実行環境設定は外部環境側で管理する。
@@ -28,14 +28,14 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "wkr-alpha",
+  "id": "wkr-7c8d9e0f-1",
   "name": "Alpha"
 }
 ```
 
 ## 2. Session
 
-- [必須] `id: string`：Session を一意に識別する値（接頭辞 `ssn-` 必須）。
+- [必須] `id: string`：Session を一意に識別する自動採番 ID（`ssn-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。
 - [任意] `started: string`：開始時刻（タイムゾーン付き ISO 8601）。
 - [任意] `ended: string`：終了時刻（終了済みの場合）。
@@ -44,31 +44,30 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "ssn-alpha-01",
-  "worker_id": "wkr-alpha",
+  "id": "ssn-2b3c4d5e-1",
+  "worker_id": "wkr-7c8d9e0f-1",
   "started": "2026-01-01T01:00:00Z"
 }
 ```
 
 ## 3. Project
 
-- [必須] `id: string`：Project を一意に参照する識別値（接頭辞 `pj-` 必須）。
-- [必須] `name: string`：何の領域か分かる名前。
-- [推奨] ID にも接頭辞に続けて対象を判別できる短い識別値を使う。
+- [必須] `id: string`：Project を一意に参照する自動採番 ID（`pj-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
+- [必須] `name: string`：何の領域か分かる名前（ID は自動採番とし、人間が判別しやすい名称は `name` に記載する）。
 - [任意] `knowledge: array<object>`：長期知識がある場合だけ記載する。
 - [任意] リポジトリ等の追加情報は必要な場合だけ保持する。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "pj-study-meetup",
+  "id": "pj-a1b2c3d4-1",
   "name": "勉強会の運営"
 }
 ```
 
 ## 4. Task
 
-- [必須] `id: string`：Task の識別値（接頭辞 `tsk-` 必須）。
+- [必須] `id: string`：Task の自動採番 ID（`tsk-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `project: string`：所属する Project の ID（`pj-*`）。
 - [必須] `objective: string`：長寿命の成果目標。
 - [必須] `criteria: array<string>`：Task 全体の完了を確認する条件を1件以上書く。
@@ -84,8 +83,8 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tsk-prepare-invitation",
-  "project": "pj-study-meetup",
+  "id": "tsk-e5f6a7b8-1",
+  "project": "pj-a1b2c3d4-1",
   "objective": "勉強会の案内を用意する",
   "criteria": [
     "日時・会場・申込方法が正しい案内文が確定している"
@@ -96,7 +95,7 @@
 
 ## 5. Ticket
 
-- [必須] `id: string`：Ticket の識別値（接頭辞 `tkt-` 必須）。
+- [必須] `id: string`：Ticket の自動採番 ID（`tkt-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `task: string`：所属する Task の ID（`tsk-*`）。
 - [必須] `worker_id: string`：担当する単一の `Worker.id`（`wkr-*`）。確定後の変更は禁止。
 - [必須] `session_id: string`：担当する単一の `Session.id`（`ssn-*`）。確定後の変更は禁止。
@@ -114,21 +113,21 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-create-invitation",
-  "task": "tsk-prepare-invitation",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-01",
+  "id": "tkt-c9d0e1f2-1",
+  "task": "tsk-e5f6a7b8-1",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-1",
   "objective": "案内文の初稿を作成し確認準備を整える",
   "jobs": [
-    "job-write-invitation",
-    "job-self-check-invitation"
+    "job-1a2b3c4d-1",
+    "job-1a2b3c4d-2"
   ]
 }
 ```
 
 ## 6. Job と status / result 分離
 
-- [必須] `id: string`：Job の識別値（接頭辞 `job-` 必須）。
+- [必須] `id: string`：Job の自動採番 ID（`job-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：達成したい目標。
 - [必須] `criteria: array<string>`：Job の完了可否を確認可能な証拠で判断できる条件を1件以上書く。
 - [任意] `instructions: string`：目標だけでは手順が伝わらない場合だけ補う（v1.0.0 の項目名を維持）。
@@ -143,7 +142,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-write-invitation",
+  "id": "job-1a2b3c4d-1",
   "objective": "必要事項を揃えた案内文を作る",
   "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
   "criteria": [
@@ -152,12 +151,12 @@
 }
 ```
 
-- [例] 次は別 Worker（`wkr-beta`）が担当するレビュー Ticket 内のレビュー Job が、差し戻し判定で完了した例。`status`（完了）と `result`（差し戻し）を分離して表現する。
+- [例] 次は別 Worker（`wkr-7c8d9e0f-2`）が担当するレビュー Ticket 内のレビュー Job が、差し戻し判定で完了した例。`status`（完了）と `result`（差し戻し）を分離して表現する。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-review-invitation",
+  "id": "job-1a2b3c4d-3",
   "objective": "案内文の記載内容を確認しレビュー結果を返す",
   "criteria": [
     "元の開催情報との照合結果と判定が記録されている"
@@ -165,7 +164,7 @@
   "status": "completed",
   "result": "changes_requested",
   "artifacts": [
-    "review-notes/tkt-create-invitation-rev1.md"
+    "review-notes/invitation-rev1.md"
   ]
 }
 ```
@@ -175,7 +174,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-release-checks",
+  "id": "job-1a2b3c4d-4",
   "objective": "公開前検証を実行し結果を記録する",
   "criteria": [
     "全検証コマンドの実行ログと合否判定が保存されている"
@@ -201,10 +200,10 @@
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-deploy-staging-01",
-    "task": "tsk-prepare-invitation",
-    "worker_id": "wkr-alpha",
-    "session_id": "ssn-alpha-01",
+    "id": "tkt-c9d0e1f2-4",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "status": "canceled",
     "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
     "artifacts": [
@@ -213,12 +212,12 @@
   },
   "jobs": [
     {
-      "id": "job-prepare-package",
+      "id": "job-1a2b3c4d-5",
       "status": "completed",
       "result": "passed"
     },
     {
-      "id": "job-apply-staging",
+      "id": "job-1a2b3c4d-6",
       "status": "canceled",
       "result": "error"
     }
@@ -238,26 +237,26 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-revise-invitation-02",
-  "task": "tsk-prepare-invitation",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-02",
+  "id": "tkt-c9d0e1f2-3",
+  "task": "tsk-e5f6a7b8-1",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-2",
   "objective": "レビュー指摘を反映して案内文を修正する",
   "jobs": [
-    "job-apply-review-fixes",
-    "job-verify-invitation-links"
+    "job-1a2b3c4d-7",
+    "job-1a2b3c4d-8"
   ],
   "depends": [
-    "tkt-review-invitation-01"
+    "tkt-c9d0e1f2-2"
   ],
   "refs": [
     {
-      "ticket_id": "tkt-create-invitation",
+      "ticket_id": "tkt-c9d0e1f2-1",
       "kind": "fixes",
       "note": "初稿ドラフト成果物を引き継ぐ"
     },
     {
-      "ticket_id": "tkt-review-invitation-01",
+      "ticket_id": "tkt-c9d0e1f2-2",
       "kind": "derived_from",
       "note": "changes_requested の指摘メモを参照"
     }
@@ -271,7 +270,7 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-publish-invitation",
+  "id": "tkt-c9d0e1f2-5",
   "status": "waiting",
   "resume": "会場管理者から最終使用許可の回答を受け取る"
 }
@@ -280,7 +279,7 @@
 ## 9. Run（実行試行と待機制御）
 
 - [定義] `Run` は Job の1回の実行試行を記録する正本。実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
-- [必須] `id: string`：実行試行を識別する ID（接頭辞 `run-` 必須）。
+- [必須] `id: string`：実行試行を識別する自動採番 ID（`run-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `ticket_id: string`：所属する Ticket の ID（`tkt-*`）。
 - [必須] `job: string`：実行した Job の ID（`job-*`）。
 - [必須] `worker_id: string`：当該 Ticket の `Worker.id`（`wkr-*`）。
@@ -294,14 +293,14 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "run-staging-apply-01",
-  "ticket_id": "tkt-deploy-staging-01",
-  "job": "job-apply-staging",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-01",
+  "id": "run-5e6f7a8b-2",
+  "ticket_id": "tkt-c9d0e1f2-4",
+  "job": "job-1a2b3c4d-6",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-1",
   "started": "2026-01-01T01:00:00Z",
   "wait": {
-    "job_id": "job-apply-staging",
+    "job_id": "job-1a2b3c4d-6",
     "target": "external-approval:staging-slot-7",
     "condition": "メンテナンス枠の開始承認を受け取る",
     "since": "2026-01-01T01:04:30Z",
@@ -311,16 +310,16 @@
 }
 ```
 
-- [例] 次は正常終了した Run（終了確定時に `result` と確認できた `ended` を記録し、この時点で `run-write-invitation-01` は閉じる）。
+- [例] 次は正常終了した Run（終了確定時に `result` と確認できた `ended` を記録し、この時点で `run-5e6f7a8b-1` は閉じる）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "run-write-invitation-01",
-  "ticket_id": "tkt-create-invitation",
-  "job": "job-write-invitation",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-01",
+  "id": "run-5e6f7a8b-1",
+  "ticket_id": "tkt-c9d0e1f2-1",
+  "job": "job-1a2b3c4d-1",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-1",
   "started": "2026-01-01T01:00:00Z",
   "ended": "2026-01-01T01:20:00Z",
   "result": "succeeded"
@@ -346,11 +345,11 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "task_id": "tsk-prepare-invitation",
-  "current_ticket_id": "tkt-revise-invitation-02",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-02",
-  "current_job_id": "job-apply-review-fixes",
+  "task_id": "tsk-e5f6a7b8-1",
+  "current_ticket_id": "tkt-c9d0e1f2-3",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-2",
+  "current_job_id": "job-1a2b3c4d-7",
   "context": "レビュー指摘3件のうち日時表記と申込URLを修正済み。残り1件の会場アクセス表記を反映中。",
   "stop_position": "会場アクセス節の照合前",
   "blockers": [],
@@ -414,14 +413,14 @@
   "protocol": "TTJ/1.1.0",
   "id": "evt-write-invitation-started",
   "operation": "start-write-invitation",
-  "target": "job-write-invitation",
+  "target": "job-1a2b3c4d-1",
   "event": "status.changed",
   "from": "todo",
   "to": "doing",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-01",
+  "worker_id": "wkr-7c8d9e0f-1",
+  "session_id": "ssn-2b3c4d5e-1",
   "timestamp": "2026-01-01T01:00:00Z",
-  "reason": "開始条件と担当セッション（wkr-alpha / ssn-alpha-01）を確認して実行を開始した",
-  "run": "run-write-invitation-01"
+  "reason": "開始条件と担当セッション（wkr-7c8d9e0f-1 / ssn-2b3c4d5e-1）を確認して実行を開始した",
+  "run": "run-5e6f7a8b-1"
 }
 ```

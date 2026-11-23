@@ -19,7 +19,7 @@ TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への変更点を「追�
 ## 変更
 
 - プロトコル表記：`"TTJ/1.0.0"` → `"TTJ/1.1.0"`
-- ID 接頭辞の統一：Project=`pj-`、Task=`tsk-`、Ticket=`tkt-`、Job=`job-`、Run=`run-`、Worker=`wkr-`、Session=`ssn-`
+- ID 形式の統一：重複を避けるため自動採番とし、全7種（`pj-`, `tsk-`, `tkt-`, `job-`, `run-`, `wkr-`, `ssn-`）を `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなし）>` 形式に統一
 - 単一 Owner 原則（Project / Task の状態の最終確定者を単一 Owner に固定）
 - Job の単純化（進行状態 `status` と結果 `result` の分離）
 - Run の正本化（単なるログから、`started` と終了確定時の `result` / `ended` および `wait` を持つ実行試行の正本へ変更）

@@ -2,7 +2,7 @@
 
 本文書は、[規格本文](specification.md) および [JSON参照形式](json-format.md) を実運用へ適用する際に迷いやすい代表的な **10場面（UC-01〜UC-10）** について、**「どのような場面か（シナリオ）」「規格上のポイント（どの状態・フィールドを使うか）」「サンプル JSON パターン」** をまとめた実践リファレンスである。
 
-すべての JSON サンプルは文書ルートに `"protocol": "TTJ/1.1.0"` を持ち、確定済みの7種の ID 接頭辞（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）に従う完全な JSON として記述している。
+すべての JSON サンプルは文書ルートに `"protocol": "TTJ/1.1.0"` を持ち、確定済みの7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に従う完全な JSON として記述している。
 
 ---
 
@@ -24,7 +24,7 @@
 ## UC-01: 基本の実行フロー
 
 ### どのような場面か（シナリオ）
-Project 配下に長寿命の成果目標である `Task` を作成し、単一 Worker（`wkr-01`）の単一 Session（`ssn-wkr01-01`）が担当する `Ticket` と最小実行単位の `Job` 列に分解して正式作成する。その後、`ssn-wkr01-01` が `Run` を開始し、確認可能な証拠に基づいて作業完了（`status: "completed"` / `Run.result: "succeeded"`）まで一方向に進める最も基本的なシナリオ。
+Project 配下に長寿命の成果目標である `Task` を作成し、単一 Worker（`wkr-7c8d9e0f-1`）の単一 Session（`ssn-2b3c4d5e-1`）が担当する `Ticket` と最小実行単位の `Job` 列に分解して正式作成する。その後、`ssn-2b3c4d5e-1` が `Run` を開始し、確認可能な証拠に基づいて作業完了（`status: "completed"` / `Run.result: "succeeded"`）まで一方向に進める最も基本的なシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **正式作成と初期状態**：Task・Ticket・Job の初期 `status` はすべて `"todo"`。Ticket は直接 `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）を変更しない。
@@ -39,21 +39,21 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 {
   "protocol": "TTJ/1.1.0",
   "project": {
-    "id": "pj-api-platform",
+    "id": "pj-a1b2c3d4-1",
     "name": "API基盤開発"
   },
   "worker": {
-    "id": "wkr-01",
+    "id": "wkr-7c8d9e0f-1",
     "name": "Worker 01"
   },
   "session": {
-    "id": "ssn-wkr01-01",
-    "worker_id": "wkr-01",
+    "id": "ssn-2b3c4d5e-1",
+    "worker_id": "wkr-7c8d9e0f-1",
     "started": "2026-02-01T09:00:00Z"
   },
   "task": {
-    "id": "tsk-auth-endpoint",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-1",
+    "project": "pj-a1b2c3d4-1",
     "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
     "criteria": [
       "エンドポイント実装と単体テストが完了し全件合格している"
@@ -62,20 +62,20 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
     "deadline": "2026-02-05T18:00:00+09:00"
   },
   "ticket": {
-    "id": "tkt-impl-auth-01",
-    "task": "tsk-auth-endpoint",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-c9d0e1f2-1",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "トークン検証ハンドラを実装し単体テストを通す",
     "jobs": [
-      "job-code-handler-01",
-      "job-unit-test-01"
+      "job-1a2b3c4d-1",
+      "job-1a2b3c4d-2"
     ],
     "status": "todo"
   },
   "jobs": [
     {
-      "id": "job-code-handler-01",
+      "id": "job-1a2b3c4d-1",
       "objective": "トークン検証ハンドラを実装する",
       "criteria": [
         "src/auth/verify.ts が作成されビルドが通る"
@@ -83,7 +83,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "status": "todo"
     },
     {
-      "id": "job-unit-test-01",
+      "id": "job-1a2b3c4d-2",
       "objective": "トークン検証ハンドラの単体テストを実行する",
       "criteria": [
         "単体テストが全件合格しテスト結果ログが保存されている"
@@ -100,36 +100,36 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-auth-endpoint",
+    "id": "tsk-e5f6a7b8-1",
     "status": "doing"
   },
   "ticket": {
-    "id": "tkt-impl-auth-01",
-    "task": "tsk-auth-endpoint",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-c9d0e1f2-1",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "jobs": [
-      "job-code-handler-01",
-      "job-unit-test-01"
+      "job-1a2b3c4d-1",
+      "job-1a2b3c4d-2"
     ],
     "status": "doing"
   },
   "jobs": [
     {
-      "id": "job-code-handler-01",
+      "id": "job-1a2b3c4d-1",
       "status": "doing"
     },
     {
-      "id": "job-unit-test-01",
+      "id": "job-1a2b3c4d-2",
       "status": "todo"
     }
   ],
   "run": {
-    "id": "run-code-handler-01",
-    "ticket_id": "tkt-impl-auth-01",
-    "job": "job-code-handler-01",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "run-5e6f7a8b-1",
+    "ticket_id": "tkt-c9d0e1f2-1",
+    "job": "job-1a2b3c4d-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "started": "2026-02-01T09:05:00Z"
   }
 }
@@ -141,8 +141,8 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-auth-endpoint",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-1",
+    "project": "pj-a1b2c3d4-1",
     "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
     "criteria": [
       "エンドポイント実装と単体テストが完了し全件合格している"
@@ -150,14 +150,14 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
     "status": "completed"
   },
   "ticket": {
-    "id": "tkt-impl-auth-01",
-    "task": "tsk-auth-endpoint",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-c9d0e1f2-1",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "トークン検証ハンドラを実装し単体テストを通す",
     "jobs": [
-      "job-code-handler-01",
-      "job-unit-test-01"
+      "job-1a2b3c4d-1",
+      "job-1a2b3c4d-2"
     ],
     "status": "completed",
     "artifacts": [
@@ -167,7 +167,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   },
   "jobs": [
     {
-      "id": "job-code-handler-01",
+      "id": "job-1a2b3c4d-1",
       "objective": "トークン検証ハンドラを実装する",
       "criteria": [
         "src/auth/verify.ts が作成されビルドが通る"
@@ -179,7 +179,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       ]
     },
     {
-      "id": "job-unit-test-01",
+      "id": "job-1a2b3c4d-2",
       "objective": "トークン検証ハンドラの単体テストを実行する",
       "criteria": [
         "単体テストが全件合格しテスト結果ログが保存されている"
@@ -193,21 +193,21 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   ],
   "runs": [
     {
-      "id": "run-code-handler-01",
-      "ticket_id": "tkt-impl-auth-01",
-      "job": "job-code-handler-01",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-5e6f7a8b-1",
+      "ticket_id": "tkt-c9d0e1f2-1",
+      "job": "job-1a2b3c4d-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T09:05:00Z",
       "ended": "2026-02-01T09:20:00Z",
       "result": "succeeded"
     },
     {
-      "id": "run-unit-test-01",
-      "ticket_id": "tkt-impl-auth-01",
-      "job": "job-unit-test-01",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-5e6f7a8b-2",
+      "ticket_id": "tkt-c9d0e1f2-1",
+      "job": "job-1a2b3c4d-2",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T09:21:00Z",
       "ended": "2026-02-01T09:30:00Z",
       "result": "succeeded"
@@ -221,10 +221,10 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 ## UC-02: 複数 Worker による並列実行
 
 ### どのような場面か（シナリオ）
-同一の `Task` 配下に、互いに実行依存を持たない独立した複数の `Ticket`（バックエンド実装 `tkt-backend-01` とフロントエンド実装 `tkt-frontend-02`）を作成し、`wkr-01`（`ssn-wkr01-01`）と `wkr-02`（`ssn-wkr02-01`）がそれぞれの Ticket で並行して `Run` を同時実行するシナリオ。
+同一の `Task` 配下に、互いに実行依存を持たない独立した複数の `Ticket`（バックエンド実装 `tkt-2a3b4c5d-1` とフロントエンド実装 `tkt-2a3b4c5d-2`）を作成し、`wkr-7c8d9e0f-1`（`ssn-2b3c4d5e-1`）と `wkr-7c8d9e0f-2`（`ssn-9a8b7c6d-1`）がそれぞれの Ticket で並行して `Run` を同時実行するシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-01`, `wkr-02`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `worker_id` と `session_id` を設定する。
+- **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-7c8d9e0f-1`, `wkr-7c8d9e0f-2`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `worker_id` と `session_id` を設定する。
 - **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 所属の単一スロット `Handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
 
 ### サンプル JSON パターン
@@ -234,29 +234,29 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   "protocol": "TTJ/1.1.0",
   "workers": [
     {
-      "id": "wkr-01",
+      "id": "wkr-7c8d9e0f-1",
       "name": "Worker 01"
     },
     {
-      "id": "wkr-02",
+      "id": "wkr-7c8d9e0f-2",
       "name": "Worker 02"
     }
   ],
   "sessions": [
     {
-      "id": "ssn-wkr01-01",
-      "worker_id": "wkr-01",
+      "id": "ssn-2b3c4d5e-1",
+      "worker_id": "wkr-7c8d9e0f-1",
       "started": "2026-02-01T10:00:00Z"
     },
     {
-      "id": "ssn-wkr02-01",
-      "worker_id": "wkr-02",
+      "id": "ssn-9a8b7c6d-1",
+      "worker_id": "wkr-7c8d9e0f-2",
       "started": "2026-02-01T10:00:00Z"
     }
   ],
   "task": {
-    "id": "tsk-search-feature",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-2",
+    "project": "pj-a1b2c3d4-1",
     "objective": "検索APIと検索UIを実装する",
     "criteria": [
       "検索APIエンドポイントと検索画面コンポーネントの双方がテストを通過している"
@@ -265,25 +265,25 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   },
   "tickets": [
     {
-      "id": "tkt-backend-01",
-      "task": "tsk-search-feature",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-2a3b4c5d-1",
+      "task": "tsk-e5f6a7b8-2",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "検索APIエンドポイントを実装する",
       "jobs": [
-        "job-impl-search-api"
+        "job-2b3c4d5e-1"
       ],
       "depends": [],
       "status": "doing"
     },
     {
-      "id": "tkt-frontend-02",
-      "task": "tsk-search-feature",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-2a3b4c5d-2",
+      "task": "tsk-e5f6a7b8-2",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "検索UIコンポーネントを実装する",
       "jobs": [
-        "job-impl-search-ui"
+        "job-2b3c4d5e-2"
       ],
       "depends": [],
       "status": "doing"
@@ -291,19 +291,19 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   ],
   "runs": [
     {
-      "id": "run-search-api-01",
-      "ticket_id": "tkt-backend-01",
-      "job": "job-impl-search-api",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-2b3c4d5e-1",
+      "ticket_id": "tkt-2a3b4c5d-1",
+      "job": "job-2b3c4d5e-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T10:01:00Z"
     },
     {
-      "id": "run-search-ui-01",
-      "ticket_id": "tkt-frontend-02",
-      "job": "job-impl-search-ui",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "run-2b3c4d5e-2",
+      "ticket_id": "tkt-2a3b4c5d-2",
+      "job": "job-2b3c4d5e-2",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "started": "2026-02-01T10:01:30Z"
     }
   ]
@@ -318,10 +318,10 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 後続 Ticket が先行 Ticket の完了を前提としている場面。先行 Ticket が未完了（あるいは先行 Ticket が中止となり継続不能な `blocked` 状態）のため後続 Ticket が開始を阻まれている状態から、先行 Ticket（または代替 Ticket）の `completed` 確定によってブロックが解除され、後続 Ticket が実行可能な `"todo"` へ遷移するシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **実行依存フィールド名 `depends`**：実行依存は `Ticket.depends`（前提 Ticket ID の配列 `["tkt-..."]`）として記述する。情報共有専用の `refs` とは明確に区別し、循環依存は厳禁とする。
+- **実行依存フィールド名 `depends`**：実行依存は `Ticket.depends`（前提 Ticket ID `tkt-*` の配列）として記述する。情報共有専用の `refs` とは明確に区別し、循環依存は厳禁とする。
 - **先行 Ticket 未完了時の状態（計画内待機 `waiting` と計画外障害 `blocked`）**：
   1. **通常の先行 Ticket 完了待ち**：先行 Ticket が進行中（`todo` / `doing` 等）の間、後続 Ticket は計画内の前提待機として `status: "waiting"` とし、先行 Ticket が `status: "completed"` になった時点で依存評価操作により `waiting → todo` へ解除される。
-  2. **先行 Ticket の中止や成果物欠落による `blocked` とその解除**：先行 Ticket（例：`tkt-schema-01`）が `status: "canceled"` になった場合など、現行計画のままでは継続不能になったとき、後続 Ticket（`tkt-migration-02`）は `status: "blocked"` に遷移し `resume` に解除条件を永続記録する。その後、代替の先行 Ticket（`tkt-schema-02`）が完了し、未着手の後続 Ticket の `depends` 更新と課題解消が確認された時点で `blocked → todo` へ遷移してブロック解除される（[規格本文](specification.md) §5.2・§7）。
+  2. **先行 Ticket の中止や成果物欠落による `blocked` とその解除**：先行 Ticket（例：`tkt-3c4d5e6f-1`）が `status: "canceled"` になった場合など、現行計画のままでは継続不能になったとき、後続 Ticket（`tkt-3c4d5e6f-3`）は `status: "blocked"` に遷移し `resume` に解除条件を永続記録する。その後、代替の先行 Ticket（`tkt-3c4d5e6f-2`）が完了し、未着手の後続 Ticket の `depends` 更新と課題解消が確認された時点で `blocked → todo` へ遷移してブロック解除される（[規格本文](specification.md) §5.2・§7）。
 
 ### サンプル JSON パターン
 
@@ -332,29 +332,29 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   "protocol": "TTJ/1.1.0",
   "tickets": [
     {
-      "id": "tkt-schema-01",
-      "task": "tsk-db-upgrade",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-3c4d5e6f-1",
+      "task": "tsk-e5f6a7b8-3",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "新テーブルのスキーマ定義を作成する",
       "jobs": [
-        "job-draft-schema-01"
+        "job-3c4d5e6f-1"
       ],
       "status": "canceled",
-      "cancel_reason": "旧仕様のカラム設計に不整合が判明したため中止。tkt-schema-02 で再作成する。"
+      "cancel_reason": "旧仕様のカラム設計に不整合が判明したため中止。tkt-3c4d5e6f-2 で再作成する。"
     },
     {
-      "id": "tkt-schema-02",
-      "task": "tsk-db-upgrade",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-02",
+      "id": "tkt-3c4d5e6f-2",
+      "task": "tsk-e5f6a7b8-3",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
       "objective": "修正仕様に基づきスキーマ定義を確定する",
       "jobs": [
-        "job-finalize-schema-02"
+        "job-3c4d5e6f-2"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-schema-01",
+          "ticket_id": "tkt-3c4d5e6f-1",
           "kind": "rerun_of",
           "note": "カラム型修正後の再作成"
         }
@@ -362,19 +362,19 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "status": "doing"
     },
     {
-      "id": "tkt-migration-02",
-      "task": "tsk-db-upgrade",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-3c4d5e6f-3",
+      "task": "tsk-e5f6a7b8-3",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "確定スキーマを用いてマイグレーションを実行する",
       "jobs": [
-        "job-run-migration-01"
+        "job-3c4d5e6f-3"
       ],
       "depends": [
-        "tkt-schema-01"
+        "tkt-3c4d5e6f-1"
       ],
       "status": "blocked",
-      "resume": "代替の先行Ticket tkt-schema-02 が completed になり depends を更新してスキーマ成果物の存在を確認する"
+      "resume": "代替の先行Ticket tkt-3c4d5e6f-2 が completed になり depends を更新してスキーマ成果物の存在を確認する"
     }
   ]
 }
@@ -387,13 +387,13 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
   "protocol": "TTJ/1.1.0",
   "tickets": [
     {
-      "id": "tkt-schema-02",
-      "task": "tsk-db-upgrade",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-02",
+      "id": "tkt-3c4d5e6f-2",
+      "task": "tsk-e5f6a7b8-3",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
       "objective": "修正仕様に基づきスキーマ定義を確定する",
       "jobs": [
-        "job-finalize-schema-02"
+        "job-3c4d5e6f-2"
       ],
       "status": "completed",
       "artifacts": [
@@ -401,22 +401,22 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       ]
     },
     {
-      "id": "tkt-migration-02",
-      "task": "tsk-db-upgrade",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-3c4d5e6f-3",
+      "task": "tsk-e5f6a7b8-3",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "確定スキーマを用いてマイグレーションを実行する",
       "jobs": [
-        "job-run-migration-01"
+        "job-3c4d5e6f-3"
       ],
       "depends": [
-        "tkt-schema-02"
+        "tkt-3c4d5e6f-2"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-schema-01",
+          "ticket_id": "tkt-3c4d5e6f-1",
           "kind": "related",
-          "note": "旧前提 tkt-schema-01 の中止に伴い前提を tkt-schema-02 に更新済み"
+          "note": "旧前提 tkt-3c4d5e6f-1 の中止に伴い前提を tkt-3c4d5e6f-2 に更新済み"
         }
       ],
       "status": "todo"
@@ -445,18 +445,18 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-release-prod-01",
-    "task": "tsk-release-v110",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-4d5e6f7a-1",
+    "task": "tsk-e5f6a7b8-4",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "本番環境へのデプロイを実施する",
     "jobs": [
-      "job-apply-prod-deploy"
+      "job-4d5e6f7a-1"
     ],
     "status": "waiting"
   },
   "job": {
-    "id": "job-apply-prod-deploy",
+    "id": "job-4d5e6f7a-1",
     "objective": "本番反映スクリプトを実行しヘルスチェックを確認する",
     "criteria": [
       "承認ゲート通過後に本番反映が完了しヘルスチェック200 OKが記録されている"
@@ -464,14 +464,14 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
     "status": "waiting"
   },
   "run": {
-    "id": "run-prod-deploy-01",
-    "ticket_id": "tkt-release-prod-01",
-    "job": "job-apply-prod-deploy",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "run-4d5e6f7a-1",
+    "ticket_id": "tkt-4d5e6f7a-1",
+    "job": "job-4d5e6f7a-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "started": "2026-02-01T12:00:00Z",
     "wait": {
-      "job_id": "job-apply-prod-deploy",
+      "job_id": "job-4d5e6f7a-1",
       "target": "change-gate:chg-2026-0201",
       "condition": "変更管理システムで本番反映ウィンドウの承認通知を受領する",
       "since": "2026-02-01T12:03:00Z",
@@ -488,8 +488,8 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-release-v110",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-4",
+    "project": "pj-a1b2c3d4-1",
     "objective": "v1.1.0 を本番環境へリリースする",
     "criteria": [
       "本番デプロイと疎通確認が完了している"
@@ -498,19 +498,19 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
     "resume": "オーナーからリリース凍結解除の指示を受け、かつ変更管理ゲート chg-2026-0201 の承認を確認する"
   },
   "ticket": {
-    "id": "tkt-release-prod-01",
-    "task": "tsk-release-v110",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-4d5e6f7a-1",
+    "task": "tsk-e5f6a7b8-4",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "本番環境へのデプロイを実施する",
     "jobs": [
-      "job-apply-prod-deploy"
+      "job-4d5e6f7a-1"
     ],
     "status": "paused",
     "resume": "オーナーの保留解除指示後、未解決の承認ゲート待機を再評価する"
   },
   "job": {
-    "id": "job-apply-prod-deploy",
+    "id": "job-4d5e6f7a-1",
     "objective": "本番反映スクリプトを実行しヘルスチェックを確認する",
     "criteria": [
       "承認ゲート通過後に本番反映が完了しヘルスチェック200 OKが記録されている"
@@ -519,16 +519,16 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
     "resume": "保留解除および change-gate:chg-2026-0201 の承認成立を確認する"
   },
   "run": {
-    "id": "run-prod-deploy-01",
-    "ticket_id": "tkt-release-prod-01",
-    "job": "job-apply-prod-deploy",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "run-4d5e6f7a-1",
+    "ticket_id": "tkt-4d5e6f7a-1",
+    "job": "job-4d5e6f7a-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "started": "2026-02-01T12:00:00Z",
     "ended": "2026-02-01T12:10:00Z",
     "result": "interrupted",
     "wait": {
-      "job_id": "job-apply-prod-deploy",
+      "job_id": "job-4d5e6f7a-1",
       "target": "change-gate:chg-2026-0201",
       "condition": "変更管理システムで本番反映ウィンドウの承認通知を受領する",
       "since": "2026-02-01T12:03:00Z",
@@ -544,32 +544,32 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
 ## UC-05: Job の失敗（`failed`）と同一 Ticket・同一 Session 内での再試行
 
 ### どのような場面か（シナリオ）
-Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信エラーやタイムアウトで失敗（`Run.result: "failed"`）したものの、同じ作業計画（同一 Ticket・同一 Session・同一 Job）のまま回復可能であるため、失敗した旧 Run を閉じて新しい Run（`run-integration-02`）を追加・実行するシナリオ。
+Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラーやタイムアウトで失敗（`Run.result: "failed"`）したものの、同じ作業計画（同一 Ticket・同一 Session・同一 Job）のまま回復可能であるため、失敗した旧 Run を閉じて新しい Run（`run-5a6b7c8d-2`）を追加・実行するシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **回復可能な中断と Job `status: "doing"` の維持**：Run が 1 回失敗・終了しただけで即座に Job や Ticket を `completed`・`canceled`・`blocked` にしてはならない（[規格本文](specification.md) §8.2）。同一計画・同一 Session で再試行できる間は Job・Ticket ともに `status: "doing"` を維持する。
-- **旧 Run の閉鎖と新 Run の追加**：旧 Run（`run-integration-01`）の終了確定時に `result: "failed"`（および `ended`）を記録して閉じ、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket（`tkt-verify-api-01`）・同一 Session（`ssn-wkr01-01`）で新しい `Run`（`run-integration-02`）を追加して再試行する。
+- **旧 Run の閉鎖と新 Run の追加**：旧 Run（`run-5a6b7c8d-1`）の終了確定時に `result: "failed"`（および `ended`）を記録して閉じ、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket（`tkt-5e6f7a8b-1`）・同一 Session（`ssn-2b3c4d5e-1`）で新しい `Run`（`run-5a6b7c8d-2`）を追加して再試行する。
 
 ### サンプル JSON パターン
 
-#### パターン 5-A：1回目の Run（`run-integration-01`）が `failed` で閉鎖された直後
+#### パターン 5-A：1回目の Run（`run-5a6b7c8d-1`）が `failed` で閉鎖された直後
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-verify-api-01",
-    "task": "tsk-auth-endpoint",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-5e6f7a8b-1",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "ステージング環境で結合検証を実行する",
     "jobs": [
-      "job-run-integration"
+      "job-5e6f7a8b-1"
     ],
     "status": "doing"
   },
   "job": {
-    "id": "job-run-integration",
+    "id": "job-5e6f7a8b-1",
     "objective": "結合テストスイートを実行し全件成功を確認する",
     "criteria": [
       "結合テスト全12ケースが成功し結果レポートが保存されている"
@@ -578,11 +578,11 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     "resume": "一時的な接続タイムアウト解消を確認して同一Jobを新Runで再試行する"
   },
   "run": {
-    "id": "run-integration-01",
-    "ticket_id": "tkt-verify-api-01",
-    "job": "job-run-integration",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "run-5a6b7c8d-1",
+    "ticket_id": "tkt-5e6f7a8b-1",
+    "job": "job-5e6f7a8b-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "started": "2026-02-01T13:00:00Z",
     "ended": "2026-02-01T13:04:00Z",
     "result": "failed"
@@ -590,39 +590,39 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 }
 ```
 
-#### パターン 5-B：同一 Ticket・同一 Session 内で新 Run（`run-integration-02`）を追加して再試行中
+#### パターン 5-B：同一 Ticket・同一 Session 内で新 Run（`run-5a6b7c8d-2`）を追加して再試行中
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-verify-api-01",
-    "task": "tsk-auth-endpoint",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-5e6f7a8b-1",
+    "task": "tsk-e5f6a7b8-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "ステージング環境で結合検証を実行する",
     "jobs": [
-      "job-run-integration"
+      "job-5e6f7a8b-1"
     ],
     "status": "doing"
   },
   "runs": [
     {
-      "id": "run-integration-01",
-      "ticket_id": "tkt-verify-api-01",
-      "job": "job-run-integration",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-5a6b7c8d-1",
+      "ticket_id": "tkt-5e6f7a8b-1",
+      "job": "job-5e6f7a8b-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T13:00:00Z",
       "ended": "2026-02-01T13:04:00Z",
       "result": "failed"
     },
     {
-      "id": "run-integration-02",
-      "ticket_id": "tkt-verify-api-01",
-      "job": "job-run-integration",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-5a6b7c8d-2",
+      "ticket_id": "tkt-5e6f7a8b-1",
+      "job": "job-5e6f7a8b-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T13:06:00Z"
     }
   ]
@@ -640,47 +640,47 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 - **1つの Ticket の担当セッション不変の原則**：1つの Ticket の持ち主（`worker_id`・`session_id`）は途中で変わらない。担当 Session が再開不可になった場合は、同じ Ticket の持ち主を付け替えるのではなく、旧 Ticket を閉じて新規 Ticket として作り直し、新しい Session で稼働させる。
 - **引き継ぎ前の停止・安全確認**：前の実行が稼働中または停止未確認の間は、後続 Ticket による引き継ぎ実行を開始してはならない（禁止事項 #13, #14）。前の実行が停止（または残存副作用がない安全条件）していることを確認できた場合のみ引き継ぎが許可される。
 - **旧 Ticket の閉鎖と新規 Ticket の起票（別 Worker でも同一 Worker の新 Session でも同一方式）**：
-  - 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、旧 Run を終了（`result: "canceled"` または `"interrupted"` 等、確認できれば `ended` を記録）し、旧 Ticket `tkt-deploy-01`（`worker_id: "wkr-01"`, `session_id: "ssn-wkr01-01"`）を `status: "canceled"`（`cancel_reason` 必須、未完了 Job も `canceled`）として閉鎖する。
-  - 同一 Task 配下に新規 Ticket `tkt-deploy-02`（`refs` に `tkt-deploy-01` を指定）を起票し、新しい担当 Session（別 Worker `wkr-02` の `ssn-wkr02-01`、または同一 Worker `wkr-01` の新 Session `ssn-wkr01-02`）を設定して新しい `Run` を開始する。
+  - 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、旧 Run を終了（`result: "canceled"` または `"interrupted"` 等、確認できれば `ended` を記録）し、旧 Ticket `tkt-6f7a8b9c-1`（`worker_id: "wkr-7c8d9e0f-1"`, `session_id: "ssn-2b3c4d5e-1"`）を `status: "canceled"`（`cancel_reason` 必須、未完了 Job も `canceled`）として閉鎖する。
+  - 同一 Task 配下に新規 Ticket `tkt-6f7a8b9c-2`（`refs` に `tkt-6f7a8b9c-1` を指定）を起票し、新しい担当 Session（別 Worker `wkr-7c8d9e0f-2` の `ssn-9a8b7c6d-1`、または同一 Worker `wkr-7c8d9e0f-1` の新 Session `ssn-2b3c4d5e-2`）を設定して新しい `Run` を開始する。
 
 ### サンプル JSON パターン
 
-#### パターン 6-A：別 Worker（`wkr-02` / `ssn-wkr02-01`）が新規 Ticket（`tkt-deploy-02`）で引き継ぐ場合
+#### パターン 6-A：別 Worker（`wkr-7c8d9e0f-2` / `ssn-9a8b7c6d-1`）が新規 Ticket（`tkt-6f7a8b9c-2`）で引き継ぐ場合
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
   "tickets": [
     {
-      "id": "tkt-deploy-01",
-      "task": "tsk-release-v110",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-6f7a8b9c-1",
+      "task": "tsk-e5f6a7b8-4",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "ステージング環境へパッケージを配布し疎通確認を行う",
       "jobs": [
-        "job-upload-pkg-01",
-        "job-smoke-test-01"
+        "job-6f7a8b9c-1",
+        "job-6f7a8b9c-2"
       ],
       "status": "canceled",
-      "cancel_reason": "ssn-wkr01-01 の停止および残存副作用がない安全条件を確認した上で旧Ticketを中止し、新規Ticket tkt-deploy-02 (wkr-02 / ssn-wkr02-01) へ引き継ぐ。",
+      "cancel_reason": "ssn-2b3c4d5e-1 の停止および残存副作用がない安全条件を確認した上で旧Ticketを中止し、新規Ticket tkt-6f7a8b9c-2 (wkr-7c8d9e0f-2 / ssn-9a8b7c6d-1) へ引き継ぐ。",
       "artifacts": [
         "packages/app-v110.tar.gz"
       ]
     },
     {
-      "id": "tkt-deploy-02",
-      "task": "tsk-release-v110",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-6f7a8b9c-2",
+      "task": "tsk-e5f6a7b8-4",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "配布済みパッケージを用いてステージング疎通確認を完了する",
       "jobs": [
-        "job-smoke-test-02"
+        "job-6f7a8b9c-3"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-deploy-01",
+          "ticket_id": "tkt-6f7a8b9c-1",
           "kind": "derived_from",
-          "note": "job-upload-pkg-01 の成果物 packages/app-v110.tar.gz を引き継いで残工程を実行"
+          "note": "job-6f7a8b9c-1 の成果物 packages/app-v110.tar.gz を引き継いで残工程を実行"
         }
       ],
       "status": "doing"
@@ -688,7 +688,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
   ],
   "jobs": [
     {
-      "id": "job-upload-pkg-01",
+      "id": "job-6f7a8b9c-1",
       "objective": "ステージングへパッケージをアップロードする",
       "criteria": [
         "packages/app-v110.tar.gz のチェックサム一致が確認されている"
@@ -697,7 +697,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "result": "passed"
     },
     {
-      "id": "job-smoke-test-01",
+      "id": "job-6f7a8b9c-2",
       "objective": "ステージングの疎通テストを実行する",
       "criteria": [
         "疎通テスト全項目が成功している"
@@ -706,7 +706,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "result": "interrupted"
     },
     {
-      "id": "job-smoke-test-02",
+      "id": "job-6f7a8b9c-3",
       "objective": "ステージングの疎通テストを実行する",
       "criteria": [
         "疎通テスト全項目が成功している"
@@ -716,56 +716,56 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
   ],
   "runs": [
     {
-      "id": "run-smoke-test-01",
-      "ticket_id": "tkt-deploy-01",
-      "job": "job-smoke-test-01",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-6f7a8b9c-1",
+      "ticket_id": "tkt-6f7a8b9c-1",
+      "job": "job-6f7a8b9c-2",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T14:00:00Z",
       "ended": "2026-02-01T14:15:00Z",
       "result": "interrupted"
     },
     {
-      "id": "run-smoke-test-02",
-      "ticket_id": "tkt-deploy-02",
-      "job": "job-smoke-test-02",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "run-6f7a8b9c-2",
+      "ticket_id": "tkt-6f7a8b9c-2",
+      "job": "job-6f7a8b9c-3",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "started": "2026-02-01T14:21:00Z"
     }
   ]
 }
 ```
 
-#### パターン 6-B：同一 Worker（`wkr-01`）が新 Session（`ssn-wkr01-02`）で新規 Ticket（`tkt-deploy-02`）を起票して引き継ぐ場合
+#### パターン 6-B：同一 Worker（`wkr-7c8d9e0f-1`）が新 Session（`ssn-2b3c4d5e-2`）で新規 Ticket（`tkt-6f7a8b9c-2`）を起票して引き継ぐ場合
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-deploy-02",
-    "task": "tsk-release-v110",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-02",
+    "id": "tkt-6f7a8b9c-2",
+    "task": "tsk-e5f6a7b8-4",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-2",
     "objective": "配布済みパッケージを用いてステージング疎通確認を完了する",
     "jobs": [
-      "job-smoke-test-02"
+      "job-6f7a8b9c-3"
     ],
     "refs": [
       {
-        "ticket_id": "tkt-deploy-01",
+        "ticket_id": "tkt-6f7a8b9c-1",
         "kind": "derived_from",
-        "note": "旧Session ssn-wkr01-01 の停止確認後に旧Ticket tkt-deploy-01 を閉じ、新Session ssn-wkr01-02 で残工程を引き継ぐ"
+        "note": "旧Session ssn-2b3c4d5e-1 の停止確認後に旧Ticket tkt-6f7a8b9c-1 を閉じ、新Session ssn-2b3c4d5e-2 で残工程を引き継ぐ"
       }
     ],
     "status": "doing"
   },
   "run": {
-    "id": "run-smoke-test-02",
-    "ticket_id": "tkt-deploy-02",
-    "job": "job-smoke-test-02",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-02",
+    "id": "run-6f7a8b9c-2",
+    "ticket_id": "tkt-6f7a8b9c-2",
+    "job": "job-6f7a8b9c-3",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-2",
     "started": "2026-02-01T14:21:00Z"
   }
 }
@@ -791,14 +791,14 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-tune-cache-01",
-    "task": "tsk-latency-improvement",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-7a8b9c0d-1",
+    "task": "tsk-e5f6a7b8-5",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "キャッシュTTL設定を調整してP99レイテンシを改善する",
     "jobs": [
-      "job-update-cache-config",
-      "job-run-benchmark"
+      "job-7a8b9c0d-1",
+      "job-7a8b9c0d-2"
     ],
     "status": "doing",
     "artifacts": [
@@ -806,13 +806,13 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     ]
   },
   "handoff": {
-    "task_id": "tsk-latency-improvement",
-    "current_ticket_id": "tkt-tune-cache-01",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
-    "current_job_id": "job-run-benchmark",
+    "task_id": "tsk-e5f6a7b8-5",
+    "current_ticket_id": "tkt-7a8b9c0d-1",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
+    "current_job_id": "job-7a8b9c0d-2",
     "context": "TTLを300秒に変更した cache-ttl-v2.yaml を反映済み。現在ベンチマーク計測を実行中。",
-    "stop_position": "job-run-benchmark のウォームアップ完了後・本計測ステップ",
+    "stop_position": "job-7a8b9c0d-2 のウォームアップ完了後・本計測ステップ",
     "blockers": [],
     "notes": [
       "TTL 600秒ではメモリ使用率が閾値を超えたため300秒を採用した。"
@@ -828,8 +828,8 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-latency-improvement",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-5",
+    "project": "pj-a1b2c3d4-1",
     "objective": "認証・検索APIのP99レイテンシを50ms以下に改善する",
     "criteria": [
       "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
@@ -837,14 +837,14 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     "status": "completed"
   },
   "ticket": {
-    "id": "tkt-tune-cache-01",
-    "task": "tsk-latency-improvement",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-7a8b9c0d-1",
+    "task": "tsk-e5f6a7b8-5",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "キャッシュTTL設定を調整してP99レイテンシを改善する",
     "jobs": [
-      "job-update-cache-config",
-      "job-run-benchmark"
+      "job-7a8b9c0d-1",
+      "job-7a8b9c0d-2"
     ],
     "status": "completed",
     "artifacts": [
@@ -857,7 +857,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "id": "cache-ttl-guideline",
       "status": "active",
       "content": "APIレスポンスキャッシュの標準TTLは300秒とし、メモリ使用率80%未満を維持する",
-      "basis": "tsk-latency-improvement のベンチマーク検証において、TTL 600秒ではメモリ逼迫が発生し、300秒でP99 38msとメモリ安全域を両立できたため。"
+      "basis": "tsk-e5f6a7b8-5 のベンチマーク検証において、TTL 600秒ではメモリ逼迫が発生し、300秒でP99 38msとメモリ安全域を両立できたため。"
     }
   ]
 }
@@ -880,27 +880,27 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 
 ### サンプル JSON パターン
 
-#### パターン 8-A：単独 Job（`job-optional-seed`）のみを中止し、同一 Ticket・同一 Session で後続 Job（`job-verify-env`）を完了させたパターン
+#### パターン 8-A：単独 Job（`job-8b9c0d1e-2`）のみを中止し、同一 Ticket・同一 Session で後続 Job（`job-8b9c0d1e-3`）を完了させたパターン
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
   "ticket": {
-    "id": "tkt-setup-preview-01",
-    "task": "tsk-preview-env",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-01",
+    "id": "tkt-8b9c0d1e-1",
+    "task": "tsk-e5f6a7b8-6",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-1",
     "objective": "プレビュー環境を構築し疎通を確認する",
     "jobs": [
-      "job-provision-infra",
-      "job-optional-seed",
-      "job-verify-env"
+      "job-8b9c0d1e-1",
+      "job-8b9c0d1e-2",
+      "job-8b9c0d1e-3"
     ],
     "status": "completed"
   },
   "jobs": [
     {
-      "id": "job-provision-infra",
+      "id": "job-8b9c0d1e-1",
       "objective": "プレビュー用コンテナを起動する",
       "criteria": [
         "コンテナがRunning状態である"
@@ -909,7 +909,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "result": "passed"
     },
     {
-      "id": "job-optional-seed",
+      "id": "job-8b9c0d1e-2",
       "objective": "旧形式のデモ用シードデータを投入する",
       "criteria": [
         "シードデータが投入されている"
@@ -918,7 +918,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "result": "canceled"
     },
     {
-      "id": "job-verify-env",
+      "id": "job-8b9c0d1e-3",
       "objective": "プレビュー環境のヘルスチェックを実行する",
       "criteria": [
         "/healthz が 200 OK を返す"
@@ -929,21 +929,21 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
   ],
   "runs": [
     {
-      "id": "run-optional-seed-01",
-      "ticket_id": "tkt-setup-preview-01",
-      "job": "job-optional-seed",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-8b9c0d1e-1",
+      "ticket_id": "tkt-8b9c0d1e-1",
+      "job": "job-8b9c0d1e-2",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T16:10:00Z",
       "ended": "2026-02-01T16:11:00Z",
       "result": "canceled"
     },
     {
-      "id": "run-verify-env-01",
-      "ticket_id": "tkt-setup-preview-01",
-      "job": "job-verify-env",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "run-8b9c0d1e-2",
+      "ticket_id": "tkt-8b9c0d1e-1",
+      "job": "job-8b9c0d1e-3",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "started": "2026-02-01T16:12:00Z",
       "ended": "2026-02-01T16:15:00Z",
       "result": "succeeded"
@@ -958,8 +958,8 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-legacy-export",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-7",
+    "project": "pj-a1b2c3d4-1",
     "objective": "旧CSVエクスポート機能を追加する",
     "criteria": [
       "CSV出力APIとバッチ処理が稼働している"
@@ -968,13 +968,13 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
   },
   "tickets": [
     {
-      "id": "tkt-csv-spec-01",
-      "task": "tsk-legacy-export",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-8b9c0d1e-2",
+      "task": "tsk-e5f6a7b8-7",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "CSVフォーマット仕様を策定する",
       "jobs": [
-        "job-define-csv-format"
+        "job-8b9c0d1e-4"
       ],
       "status": "completed",
       "artifacts": [
@@ -982,22 +982,22 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-csv-impl-02",
-      "task": "tsk-legacy-export",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-8b9c0d1e-3",
+      "task": "tsk-e5f6a7b8-7",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "CSV出力バッチを実装する",
       "jobs": [
-        "job-code-csv-batch",
-        "job-test-csv-batch"
+        "job-8b9c0d1e-5",
+        "job-8b9c0d1e-6"
       ],
       "status": "canceled",
-      "cancel_reason": "製品ロードマップ変更により旧CSVエクスポート機能の開発自体が中止（tsk-legacy-export canceled）となったため。"
+      "cancel_reason": "製品ロードマップ変更により旧CSVエクスポート機能の開発自体が中止（tsk-e5f6a7b8-7 canceled）となったため。"
     }
   ],
   "jobs": [
     {
-      "id": "job-define-csv-format",
+      "id": "job-8b9c0d1e-4",
       "objective": "CSVフォーマット仕様書を作成する",
       "criteria": [
         "docs/csv-spec.md が作成されている"
@@ -1006,7 +1006,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "result": "passed"
     },
     {
-      "id": "job-code-csv-batch",
+      "id": "job-8b9c0d1e-5",
       "objective": "CSV出力バッチを実装する",
       "criteria": [
         "バッチ処理コードがビルドを通過する"
@@ -1015,7 +1015,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "result": "canceled"
     },
     {
-      "id": "job-test-csv-batch",
+      "id": "job-8b9c0d1e-6",
       "objective": "CSV出力バッチを検証する",
       "criteria": [
         "検証テストが全件成功する"
@@ -1031,12 +1031,12 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ## UC-09: レビュー差し戻し・追加 Job の発生
 
 ### どのような場面か（シナリオ）
-作成 Ticket（`tkt-draft-doc-01`）の完了後に別 Worker（`wkr-02`）がレビュー Ticket（`tkt-review-doc-01`）を実行した結果、修正要求（`changes_requested`）となり、指摘反映と再検証のための追加 Job と新 Run が必要になったシナリオ。
+作成 Ticket（`tkt-9c0d1e2f-1`）の完了後に別 Worker（`wkr-7c8d9e0f-2`）がレビュー Ticket（`tkt-9c0d1e2f-2`）を実行した結果、修正要求（`changes_requested`）となり、指摘反映と再検証のための追加 Job と新 Run が必要になったシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **レビュー差し戻し時の `status` と `result` の分離**：レビュー Job が差し戻し結論を出した場合、レビューという作業自体は完了しているため `Job.status: "completed"`, `Job.result: "changes_requested"` として確定し、レビュー Ticket も `status: "completed"` に集約する（独立した `Request` オブジェクトは導入しない）。
 - **確定後 Ticket への Job 追加禁止・終端 Ticket 再開禁止**：一度正式作成した Ticket の `jobs` 列に後から Job を追加したり、完了済みの作成 Ticket やレビュー Ticket を `doing` / `todo` に再開・巻き戻したりすることは**禁止**（禁止事項 #8, #9）。
-- **同一 Task 配下への新 Ticket 起票による追加 Job・新 Run 対応**：差し戻し修正や追加で必要になった Job 列は、**同一 Task（`tsk-*`）配下に新しい Ticket（`tkt-revise-doc-02`）として起票**する（Task を新しく増殖させてはならない）。新 Ticket の `depends` にレビュー Ticket を指定し、`refs`（`kind: "fixes"` / `"derived_from"`）で初稿 Ticket の成果物とレビュー Ticket の指摘メモを参照した上で、新 Session（`ssn-wkr01-02`）で新 Run を実行する。
+- **同一 Task 配下への新 Ticket 起票による追加 Job・新 Run 対応**：差し戻し修正や追加で必要になった Job 列は、**同一 Task（`tsk-*`）配下に新しい Ticket（`tkt-9c0d1e2f-3`）として起票**する（Task を新しく増殖させてはならない）。新 Ticket の `depends` にレビュー Ticket を指定し、`refs`（`kind: "fixes"` / `"derived_from"`）で初稿 Ticket の成果物とレビュー Ticket の指摘メモを参照した上で、新 Session（`ssn-2b3c4d5e-2`）で新 Run を実行する。
 
 ### サンプル JSON パターン
 
@@ -1044,8 +1044,8 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 {
   "protocol": "TTJ/1.1.0",
   "task": {
-    "id": "tsk-security-policy",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-8",
+    "project": "pj-a1b2c3d4-1",
     "objective": "APIセキュリティ運用規約を策定し承認を得る",
     "criteria": [
       "規約文書が作成され、レビュアーの承認（approved）を得ている"
@@ -1054,13 +1054,13 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
   },
   "tickets": [
     {
-      "id": "tkt-draft-doc-01",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-9c0d1e2f-1",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "セキュリティ運用規約の初稿を作成する",
       "jobs": [
-        "job-write-policy-01"
+        "job-9c0d1e2f-1"
       ],
       "status": "completed",
       "artifacts": [
@@ -1068,20 +1068,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-review-doc-01",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-9c0d1e2f-2",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "セキュリティ運用規約の初稿をレビューする",
       "jobs": [
-        "job-review-policy-01"
+        "job-9c0d1e2f-2"
       ],
       "depends": [
-        "tkt-draft-doc-01"
+        "tkt-9c0d1e2f-1"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-draft-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-1",
           "kind": "related",
           "note": "初稿 docs/security-policy-v1.md をレビュー"
         }
@@ -1092,26 +1092,26 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-revise-doc-02",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-02",
+      "id": "tkt-9c0d1e2f-3",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
       "objective": "レビュー指摘に基づき鍵ローテーション手順を追記・検証する",
       "jobs": [
-        "job-add-rotation-section",
-        "job-verify-policy-checklist"
+        "job-9c0d1e2f-3",
+        "job-9c0d1e2f-4"
       ],
       "depends": [
-        "tkt-review-doc-01"
+        "tkt-9c0d1e2f-2"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-draft-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-1",
           "kind": "fixes",
           "note": "初稿 docs/security-policy-v1.md をベースに改訂"
         },
         {
-          "ticket_id": "tkt-review-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-2",
           "kind": "derived_from",
           "note": "changes_requested の指摘事項（鍵ローテーション手順の不足）を反映"
         }
@@ -1121,7 +1121,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
   ],
   "jobs": [
     {
-      "id": "job-review-policy-01",
+      "id": "job-9c0d1e2f-2",
       "objective": "初稿の記載漏れと基準適合性を検証し判定を記録する",
       "criteria": [
         "レビュー結果と判定（approved または changes_requested）が記録されている"
@@ -1133,7 +1133,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "job-add-rotation-section",
+      "id": "job-9c0d1e2f-3",
       "objective": "緊急時の鍵ローテーション手順節を追記する",
       "criteria": [
         "docs/security-policy-v2.md に鍵ローテーション手順が明記されている"
@@ -1141,7 +1141,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "status": "doing"
     },
     {
-      "id": "job-verify-policy-checklist",
+      "id": "job-9c0d1e2f-4",
       "objective": "全チェックリスト項目との整合を確認する",
       "criteria": [
         "チェックリスト全項目との照合が完了している"
@@ -1150,11 +1150,11 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
     }
   ],
   "run": {
-    "id": "run-add-rotation-01",
-    "ticket_id": "tkt-revise-doc-02",
-    "job": "job-add-rotation-section",
-    "worker_id": "wkr-01",
-    "session_id": "ssn-wkr01-02",
+    "id": "run-9c0d1e2f-1",
+    "ticket_id": "tkt-9c0d1e2f-3",
+    "job": "job-9c0d1e2f-3",
+    "worker_id": "wkr-7c8d9e0f-1",
+    "session_id": "ssn-2b3c4d5e-2",
     "started": "2026-02-01T17:00:00Z"
   }
 }
@@ -1180,7 +1180,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 {
   "protocol": "TTJ/1.1.0",
   "project": {
-    "id": "pj-api-platform",
+    "id": "pj-a1b2c3d4-1",
     "name": "API基盤開発",
     "knowledge": [
       {
@@ -1193,14 +1193,14 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
         "id": "security-policy-immediate-key-rotation",
         "status": "active",
         "content": "緊急時の署名鍵ローテーションは即時配信リストへ反映し5分以内に全ゲートウェイへ伝播させる",
-        "basis": "tsk-security-policy のレビューおよび改訂で合意された新基準。",
+        "basis": "tsk-e5f6a7b8-8 のレビューおよび改訂で合意された新基準。",
         "supersedes": "security-policy-v0-rule"
       }
     ]
   },
   "task": {
-    "id": "tsk-security-policy",
-    "project": "pj-api-platform",
+    "id": "tsk-e5f6a7b8-8",
+    "project": "pj-a1b2c3d4-1",
     "objective": "APIセキュリティ運用規約を策定し承認を得る",
     "criteria": [
       "規約文書が作成され、レビュアーの承認（approved）を得ている"
@@ -1209,13 +1209,13 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
   },
   "tickets": [
     {
-      "id": "tkt-draft-doc-01",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-01",
+      "id": "tkt-9c0d1e2f-1",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
       "objective": "セキュリティ運用規約の初稿を作成する",
       "jobs": [
-        "job-write-policy-01"
+        "job-9c0d1e2f-1"
       ],
       "status": "completed",
       "artifacts": [
@@ -1223,20 +1223,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-review-doc-01",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-01",
+      "id": "tkt-9c0d1e2f-2",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
       "objective": "セキュリティ運用規約の初稿をレビューする",
       "jobs": [
-        "job-review-policy-01"
+        "job-9c0d1e2f-2"
       ],
       "depends": [
-        "tkt-draft-doc-01"
+        "tkt-9c0d1e2f-1"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-draft-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-1",
           "kind": "related",
           "note": "初稿レビュー（changes_requested で終了・アーカイブ済み）"
         }
@@ -1247,26 +1247,26 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-revise-doc-02",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-01",
-      "session_id": "ssn-wkr01-02",
+      "id": "tkt-9c0d1e2f-3",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
       "objective": "レビュー指摘に基づき鍵ローテーション手順を追記・検証する",
       "jobs": [
-        "job-add-rotation-section",
-        "job-verify-policy-checklist"
+        "job-9c0d1e2f-3",
+        "job-9c0d1e2f-4"
       ],
       "depends": [
-        "tkt-review-doc-01"
+        "tkt-9c0d1e2f-2"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-draft-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-1",
           "kind": "fixes",
           "note": "初稿を改訂し v2 を作成"
         },
         {
-          "ticket_id": "tkt-review-doc-01",
+          "ticket_id": "tkt-9c0d1e2f-2",
           "kind": "derived_from",
           "note": "差し戻し指摘をすべて解消"
         }
@@ -1277,20 +1277,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       ]
     },
     {
-      "id": "tkt-review-doc-02",
-      "task": "tsk-security-policy",
-      "worker_id": "wkr-02",
-      "session_id": "ssn-wkr02-02",
+      "id": "tkt-9c0d1e2f-4",
+      "task": "tsk-e5f6a7b8-8",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-2",
       "objective": "改訂版セキュリティ運用規約の最終承認レビューを行う",
       "jobs": [
-        "job-review-policy-02"
+        "job-9c0d1e2f-5"
       ],
       "depends": [
-        "tkt-revise-doc-02"
+        "tkt-9c0d1e2f-3"
       ],
       "refs": [
         {
-          "ticket_id": "tkt-revise-doc-02",
+          "ticket_id": "tkt-9c0d1e2f-3",
           "kind": "related",
           "note": "改訂版 docs/security-policy-v2.md を最終確認し approved"
         }
