@@ -27,7 +27,7 @@ foreach ($ttjJsonBlock in $ttjJsonBlocks) {
 }
 ```
 
-文書リンクの参照先、JSON例の `protocol`、担当継承、状態遷移、終了判定が規格本文と一致することも確認する。
+文書リンクの参照先、JSON例の `protocol`、`owner_id`・実行権・`depends`/`refs` 区分・状態遷移・終了判定が規格本文と一致することも確認する。
 
 Skillの形式は、skill-creatorの `scripts/quick_validate.py` で検証する。`$ttjValidator` には利用環境にあるスクリプトの実際のパスを指定する。uvは検証スクリプトが必要とするPyYAMLを一時環境に用意する。
 
@@ -52,7 +52,7 @@ git log -1 --oneline
 対象版とリリース説明を設定し、同名のタグ・リリースが存在しないことを確認する。既存タグは付け替えない。
 
 ```powershell
-$ttjVersion = '1.0.0'
+$ttjVersion = '1.1.0'
 $ttjTag = "v$ttjVersion"
 $ttjNotes = '<変更内容と互換性への影響>'
 $ttjCommit = git rev-parse HEAD

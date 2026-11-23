@@ -1,61 +1,54 @@
 # TTJ
 
-**Task–Ticket–Job 管理規格 · v1.0.0**
+**Task–Ticket–Job 管理規格 · v1.1.0**
 
-- [定義] **目的**：担当や環境が変わっても、作業と知識を継続する。
-  - [任意] 人間のみ・LLMのみ・共同作業・担当交代・専属で運用する。
-  - [必須] 必要な情報を一度だけ書き、専用の分類や重複記入を増やさない。
+- [定義] **目的**：担当や環境が変わっても、作業・申し送り・知識を安全に継続する。
+  - [必須] Worker 種別（人間・Bot・AI 等）で業務ロジックや状態遷移を分岐させず、特定 Agent・Bot・オーケストレーターへ依存しない。
+  - [必須] 必要な情報を一度だけ書き、不要な分類や状態機械を増やさない。
 
 ```text
-Project（名前を持つ継続領域）
-└── Task（目標と完了条件）
-    ├── Ticket A ─┐
-    ├── Ticket B ─┴─→ Ticket C（A・Bの処理終了後に開始）
-    └── Ticket（固定したJob列）
-        └── Job 1 → Job 2 → …（同じJob内の共同作業は可能）
+Worker（責任主体：id / name）── Session（実行単位：id / worker_id）
+                                    │  ▲ Execution Claim（generation フェンシング）
+Project（名前を持つ継続領域・長期知識 knowledge）
+└── Task（長寿命の成果目標・criteria・揮発性 Handoff 単一スロット）
+    ├── Ticket A（単一不変 owner_id）─┐
+    ├── Ticket B（単一不変 owner_id）─┴─→ Ticket C（depends で完了待ち / refs で情報共有参照）
+    └── Ticket（確定後は固定の Job 列・一方向進行）
+        └── Job 1 → Job 2 → …（status と result を分離）
+            └── Run（実行試行・activity 観測・waiting 時の待機制御）
 ```
 
-- [必須] **規格の識別**：独立したJSON文書のルートに `protocol: "TTJ/1.0.0"` を持つ。
+- [必須] **規格の識別**：独立した JSON 文書のルートに `protocol: "TTJ/1.1.0"` を持つ。
   - [定義] 子レコードは同じ版を共有し、転記は不要。
+- [必須] **Worker と Session**：作業の責任主体（`Worker`：`id`・`name`）と実行単位（`Session`：`id`・`worker_id`）を分離する。
+  - [禁止] `owner_type` の必須化や、Worker 種別による状態遷移の分岐。
+  - [必須] 同じ Worker が複数 Ticket・複数 Session を持てるが、同一作業系列の実行権を同時に保持できる Session は最大1つとする。
 - [必須] **Project**：`id` と意味の分かる `name` を持つ。
   - [任意] リポジトリを伴わない作業にも使う。
-  - [例] リポジトリ1つは粒度の目安。
-- [定義] **目標**：`objective` はTask・Ticket・Jobで同じ意味の「達成したいこと」。
-- [必須] **Task**：`id`・`project`・`objective`・`criteria` を持つ。
-  - [任意] 期限がある場合だけ `deadline` をタイムゾーン付き日時で記載する。
-- [必須] **Ticket**：`id`・`task`・`objective`・`jobs` を持つ。
-  - [必須] 全Jobが `completed` または `canceled` になれば `completed` にする。
-  - [必須] Ticket自身がキャンセル済みなら `canceled` を維持する。
-  - [禁止] Ticket独自の完了条件を追加する。
-- [必須] **Job**：`id`・`objective`・`criteria` を持つ。
-  - [必須] 実行順はTicketの `jobs` に従う。
-  - [任意] 必要なJobだけ中止し、後続を続ける。
-- [任意] **担当**：人・LLM・LLMセッション等の識別値を `assignee` の一覧に指定する。
-  - [任意] Job固有の担当を指定し、省略時はTicketの担当を使う。
-  - [任意] 複数担当が同じJobを共同で進める。
-  - [必須] 必要人数や全員の確認はJobの `criteria` で表す。
-- [任意] **依存**：`depends` に前提Ticketを指定する。
-- [定義] **状態の分離**：`status` は作業状態、`activity` はプロセス観測。
-  - [任意] 再開条件が参照や申し送りから分からない場合だけ `resume` を書く。
-- [必須] **課題への対応**：元Ticketの `handoffs` に課題を書き、通常の新Ticketで対応する。
-  - [必須] 対応するTicketの `handoffs` に元TicketのIDと対応内容を書く。
-  - [禁止] 専用の関係フィールドや分類を追加する。
-- [定義] **実行記録**：RunはJobの1回の実行と結果をまとめる。
-  - [必須] 人間の作業も同じ形で記録し、再試行ごとに新しいRunを使う。
-  - [任意] プロセスを監視する場合だけ観測情報を加える。
-- [必須] **記憶**：短期の `handoffs` とProjectの長期知識 `knowledge` を分ける。
-  - [定義] `active` は現在使う知識、`supersed` は現在使わない過去の知識。
-  - [必須] 新規の知識や予定は `active` とし、通常は `active` だけを参照する。
-  - [必須] 過去の内容・根拠・判断理由も残す。
-- [定義] **Ticketの完了**：処理終了を表し、目標達成そのものは保証しない。
-  - [必須] Taskの目標達成はTaskの `criteria` で確認する。
-- [任意] **終了後の保管**：保存・削除方法と保持期限は運用で決める。
-  - [必須] Projectの知識はTask・Ticketの保存有無に依存させない。
-- [定義] **[規格本文](skills/ttj/references/specification.md)**：作業規則の正本。
+- [定義] **目標**：`objective` は Task・Ticket・Job で同じ意味の「達成したいこと」。
+- [必須] **Task**：`id`・`project`・`objective`・`criteria` を持つ長寿命の成果目標。
+  - [任意] 期限がある場合だけ `deadline` をタイムゾーン付き ISO 8601 日時で記載する。
+  - [禁止] 修正・再実行による Ticket 増加で Task を増殖させる、または完了 Ticket 数のみで達成率を決める。
+- [必須] **Ticket**：`id`・`task`・`owner_id`・`objective`・`jobs` を持つ、単一 Worker 担当・一方向進行の作業単位。
+  - [禁止] 複数 Owner、Job ごとの個別 Owner、同一 Ticket の `owner_id` 変更、Ticket 独自の `criteria`、確定後の Job 列変更、終端 Ticket の再開。
+  - [必須] 全 Job が `completed` または `canceled` になれば `completed` に集約し、Ticket 自身がキャンセル済みなら `canceled` と `cancel_reason` を維持する。
+  - [定義] 次 Ticket が未作成でも終了済み Ticket をアーカイブできる。
+- [必須] **Job**：`id`・`objective`・`criteria`（任意で `instructions`）を持つ最小実行単位。
+  - [必須] 進行状態 `status` と業務結果 `result`（`approved`・`changes_requested`・`passed`・`failed` 等）を分離する。
+  - [禁止] 独立した `Request` オブジェクト、子 Job、複雑なワークフロー構造、種別ごとの Job 分類。
+- [任意] **実行依存と情報共有参照**：実行依存 `depends`（循環禁止）と、成果物・中止理由・派生関係等を共有する `refs` を明確に区別する。
+- [定義] **Run と Execution Claim**：`Run` は実行試行と待機制御（`wait`）・生存観測（`activity`）を保持し、`Execution Claim` は `generation` フェンシングによる実行権の正本を保持する。
+  - [必須] Heartbeat 途絶単独で停止確認済み（`stopped`）とせず、停止確認済みかつ安全条件成立時のみ原子的に巻き取りを許可する。
+- [定義] **揮発性 Handoff と長期知識**：短期の引き継ぎは Task 所属の揮発性単一スロット `Handoff`、長期知識は Project の `knowledge`（`active`・`supersed`）に分ける。
+  - [必須] Handoff の閲覧権限と実行権限を分離し、Handoff 消失でも正式履歴を失わず、無関係な Ticket の並列実行を遮らない。
+- [定義] **[規格本文](skills/ttj/references/specification.md)**：TTJ v1.1.0 作業規則の正本。
 - [定義] **[JSON参照形式](skills/ttj/references/json-format.md)**：項目ごとの記入方法と例。
-- [定義] **[TTJ Skill](skills/ttj/SKILL.md)**：LLMが規格を適用する手順。
-  - [任意] `skills/ttj` 全体を利用環境のSkill配置先へコピーする。
+- [定義] **[TTJ Skill](skills/ttj/SKILL.md)**：LLM が規格を適用する手順。
+  - [任意] `skills/ttj` 全体を利用環境の Skill 配置先へコピーする。
   - [必須] コピーする場合は参照文書も含める。
-  - [禁止] Skill単独で永続化や排他を保証したと称する。
+  - [禁止] Skill 単独で永続化・排他・外部副作用防止を保証したと称する。
+- [定義] **[v1.1.0 変更概要・モデル差分・状態遷移](docs/migration-1.1.0.md)**：1.0.0 からの変更点、データモデル差分、状態遷移の詳細整理。
+- [定義] **[受け入れテスト仕様（UC-01〜UC-27）](docs/acceptance-tests.md)**：適合確認と禁止事項 1〜18 の検証ケース。
+- [例] **[Orca Adapter 補足設計](docs/orca-adapter.md)**：TTJ Core 非依存を保った外部オーケストレーター連携設計例（非規範）。
 - [定義] **ライセンス**：[Apache-2.0](LICENSE)。
-- [定義] **[運用手順](RUNBOOK.md)**：PR経由の変更とリリースの検証・公開手順。
+- [定義] **[運用手順](RUNBOOK.md)**：PR 経由の変更とリリースの検証・公開手順。
