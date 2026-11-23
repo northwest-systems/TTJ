@@ -15,7 +15,7 @@ Project（id: pj-* / 名前を持つ継続領域・長期知識 knowledge）
     ├── Ticket B（id: tkt-* / worker_id: wkr-* / session_id: ssn-*）─┴─→ Ticket C（depends で完了待ち / refs で情報共有参照）
     └── Ticket（担当セッション固定・確定後は固定の Job 列・一方向進行）
         └── Job 1 → Job 2 → …（id: job-* / status と result を分離）
-            └── Run（id: run-* / 実行試行の正本・activity 観測・waiting 時の待機制御）
+            └── Run（id: run-* / 実行試行の正本・waiting 時の待機制御）
 ```
 
 - [必須] **規格の識別**：独立した JSON 文書のルートに `protocol: "TTJ/1.1.0"` を持つ。
@@ -39,9 +39,9 @@ Project（id: pj-* / 名前を持つ継続領域・長期知識 knowledge）
   - [必須] 進行状態 `status` と業務結果 `result`（`approved`・`changes_requested`・`passed`・`failed` 等）を分離する。
   - [禁止] 独立した `Request` オブジェクト、子 Job、複雑なワークフロー構造、種別ごとの Job 分類。
 - [任意] **実行依存と情報共有参照**：実行依存 `depends`（循環禁止）と、成果物・中止理由・派生関係等を共有する `refs` を明確に区別する。
-- [定義] **Run**：`Run`（`id` 接頭辞 `run-`）は実行試行の正本として `worker_id`・`session_id`・待機制御（`wait`）・生存観測（`activity`）・試行結果（`result`）を保持する。
+- [定義] **Run**：`Run`（`id` 接頭辞 `run-`）は実行試行の正本として `worker_id`・`session_id`・開始時刻（`started`）・待機制御（`wait`）・試行結果（`result`）を保持する（実行中は `result`・`ended` が無く、終了確定時に `result` と確認できれば `ended` を記録する）。
   - [必須] 同一 Ticket・同一 Session 内での Job 再試行は、失敗した旧 Run を閉じて新しい Run を追加・実行する。
-  - [必須] Heartbeat 途絶単独で停止確認済み（`stopped`）とせず、停止確認済みかつ安全条件成立時のみ新規 Ticket への引き継ぎを許可する。
+  - [必須] 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で旧 Run と旧 Ticket を閉鎖した場合のみ、新規 Ticket への引き継ぎを許可する。
 - [定義] **揮発性 Handoff と長期知識**：短期の引き継ぎは Task 所属の揮発性単一スロット `Handoff`（Task 完了時に消去）、長期知識は Project の `knowledge`（`active`・`supersed`）に分ける。
   - [必須] Handoff 消失でも正式履歴を失わず、無関係な Ticket の並列実行を遮らない。
 - [定義] **[規格本文](skills/ttj/references/specification.md)**：TTJ v1.1.0 作業規則の正本。

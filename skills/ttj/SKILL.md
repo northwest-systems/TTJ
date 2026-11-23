@@ -56,7 +56,7 @@ metadata:
   - [必須] 同一 Ticket・同一 Session 内の通常再試行および（Job 単独中止後の）後続 Job 開始では、前の Run を閉鎖した上で停止確認または安全条件を確認してから新しい `Run` を開始する（残存副作用の疑いがあれば停止確認・復旧まで開始禁止）。
 - [必須] **Run 記録**：Job の1回の実行試行の正本として `Run`（`id`: `run-*`, `ticket_id`, `job`, `worker_id`, `session_id`）を記録する。
   - [禁止] 同じ Ticket の別 Job を同時実行する、複数の Run を同時に稼働させる、または同じ試行の再送を二重登録する。
-  - [必須] 実作業を開始した Run では `started` を必須記録する（未起動予約 `unstarted` や実作業なしで閉鎖した `unstarted → stopped` では省略可）。終了確定時に `result` を必須記録し、終了時点で当該 `Run.id` を閉じる。
+  - [必須] Run では実作業開始時刻 `started` を必須記録する。実行中は `result`（および `ended`）を持たず、終了確定時に `result`（および確認できれば `ended`）を必須記録し、終了時点で当該 `Run.id` を閉じる。
   - [必須] 待機・実行制御情報（`wait`）は Job ではなく `Run` 側で保持する。
   - [禁止] 依頼送信や `Run` の終了だけで Job を完了する。
   - [禁止] 閉じた旧 `Run.id` や対象外 Session からの業務状態更新を適用する。
@@ -64,7 +64,7 @@ metadata:
 - [必須] **Job の終了と status / result 分離**：確認可能な証拠に基づき完了または中止を確定する。
   - [必須] `criteria` をすべて満たせば `status` を `completed` とし、業務判定（`approved`・`changes_requested`・`passed`・`failed` 等）を `result` に分離して記録する。
   - [必須] レビュー・調査・承認・操作依頼および依頼先からの追加依頼は通常の Ticket / Job で表現する。
-  - [任意] 必要な Job だけ理由を残して `canceled` にし、実行中の Run があれば同時に閉鎖（`result: "canceled"`, `activity: "stopped"`）して停止確認または安全条件を確認した上で後続 Job を続ける。
+  - [任意] 必要な Job だけ理由を残して `canceled` にし、実行中の Run があれば同時に終了（`result: "canceled"` 等を記録して閉鎖）し、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で後続 Job を続ける。
   - [必須] 差し戻しや失敗に応じた修正・再実行は完了済み Job を巻き戻さず新しい Ticket で対応する。
 - [必須] **Ticket の終了**：全 Job が終端（`completed`・`canceled`）なら `completed` に集約する。
   - [必須] Ticket 自身がキャンセル済みなら `canceled` を維持し、`cancel_reason` を必須記録する。
@@ -83,11 +83,11 @@ metadata:
   - [必須] 保留中（`paused`）は実行再開を禁止し、未解消の待機・課題を保持して明示解除時に再評価する（保留前状態の無条件復元禁止）。
   - [必須] 再開・障害解除・再試行に必要な条件や証拠は必ず永続正本（`depends`・`Run.wait`・`Run.result`・`Ticket.cancel_reason`・`resume`・管理履歴）に保存し、揮発性 Handoff のみに委ねない。
   - [必須] 中断・引き継ぎ前および重要な失敗時は正本と Handoff を更新し、再開時は正本・実状態と照合して、条件が変わっていない失敗を根拠なく繰り返さない。
-- [必須] **同一 Ticket・同一 Session 内の Job 再試行**：一時的なエラー等で `Run` が `result: "failed"` となったが同一 Session で回復可能な場合は、Ticket・Job の `status: "doing"` を維持したまま失敗した旧 Run を閉鎖（`activity: "stopped"`）し、同一 Ticket・同一 Session で新しい `Run`（`run-*`）を追加・実行する。
-- [必須] **生存判定と Session 再開不可時の新規 Ticket 起票**：生存状態は `Run.activity`（`unstarted`・`alive`・`stopped`・`unknown`）で判定し、Heartbeat 途絶単独で `stopped` と確定しない。
+- [必須] **同一 Ticket・同一 Session 内の Job 再試行**：一時的なエラー等で `Run` が `result: "failed"` となったが同一 Session で回復可能な場合は、Ticket・Job の `status: "doing"` を維持したまま失敗した旧 Run を終了（`result: "failed"` 等を記録して閉鎖）し、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket・同一 Session で新しい `Run`（`run-*`）を追加・実行する。
+- [必須] **Session 再開不可時の新規 Ticket 起票**：担当 Session が再開不可となった場合は、前の実行が停止（または残存副作用がない安全条件）していることを確認してから新規 Ticket へ引き継ぐ。
   - [禁止] 1つの Ticket の担当セッション（`worker_id`・`session_id`）を途中で書き換えて別 Session や別 Worker に付け替える。
-  - [禁止] 稼働中（`alive`、`waiting` かつ稼働中を含む）または状態不明（`unknown`）の Run が残存する状態で旧 Ticket を引き継ぐ。
-  - [必須] Worker / Session が無応答・再開不可となった場合は、旧 Run の停止確認（`activity: "stopped"`）および残存副作用がない安全条件を確認した上で、旧 Ticket（および未完了 Job / Run）を `status: "canceled"`（`cancel_reason` 必須）として閉鎖し、同一 Task 配下に新規 Ticket（`tkt-*`、`refs` で旧 Ticket を参照）を起票して新しい Session（`ssn-*`）で稼働させる。
+  - [禁止] 前の実行が稼働中または停止未確認の状態で旧 Ticket を引き継ぐ。
+  - [必須] Worker / Session が無応答・再開不可となった場合は、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、旧 Run を終了（`result: "canceled"` 等）し、旧 Ticket（および未完了 Job）を `status: "canceled"`（`cancel_reason` 必須）として閉鎖し、同一 Task 配下に新規 Ticket（`tkt-*`、`refs` で旧 Ticket を参照）を起票して新しい Session（`ssn-*`）で稼働させる。
   - [必須] 障害注入等の副作用がある作業では、Ticket 中止と環境復旧を分離し、安全確認完了まで後続の危険な実行を禁止する。
 - [必須] **課題対応**：ブロックされた課題の修復、別 Worker への依頼、差し戻し修正はいずれも通常の新 Ticket にし、`refs` で元 Ticket を参照する。
   - [必須] 元 Ticket が継続可能なら、正本に記録した解除条件に基づき実際の課題解消を確認してから再開する（別 Ticket 完了だけで自動解除しない）。

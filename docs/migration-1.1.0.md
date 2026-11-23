@@ -22,5 +22,5 @@ TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への変更点を「追�
 - ID 接頭辞の統一：Project=`pj-`、Task=`tsk-`、Ticket=`tkt-`、Job=`job-`、Run=`run-`、Worker=`wkr-`、Session=`ssn-`
 - 単一 Owner 原則（Project / Task の状態の最終確定者を単一 Owner に固定）
 - Job の単純化（進行状態 `status` と結果 `result` の分離）
-- Run の正本化（単なるログから実行試行の正本へ変更）
+- Run の正本化（単なるログから、`started` と終了確定時の `result` / `ended` および `wait` を持つ実行試行の正本へ変更）
 - 再開不可・差し戻し時のルール（既存 Ticket のセッション持ち主や確定済み Job 列を書き換えず、`refs`・`depends` 付きの新規 Ticket を作り直す方式に統一）

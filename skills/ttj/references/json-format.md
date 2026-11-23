@@ -190,7 +190,7 @@
 
 ## 7. 終了判定・中止と新 Ticket による再実行
 
-- [必須] Job は確認可能な証拠に基づき `criteria` をすべて満たしたら `completed`、中止を判断したら `canceled` にする。Job を単独で `canceled` にする場合は、実行中 Run があれば同時に閉鎖（`result: "canceled"`, `activity: "stopped"`）し、停止要求を発行する。
+- [必須] Job は確認可能な証拠に基づき `criteria` をすべて満たしたら `completed`、中止を判断したら `canceled` にする。Job を単独で `canceled` にする場合は、実行中 Run があれば同時に終了（`result: "canceled"` 等を記録して閉鎖）し、停止要求を発行する。
 - [必須] 後続 Job を開始するには、先行 Job がすべて `completed` または `canceled` であることに加え、[規格本文](specification.md) 第6節・第8節の開始条件をすべて満たす必要がある：前提 Ticket が `completed`、対象 Ticket および現在 Job が `todo` または `doing`（`paused`・`blocked`・`waiting`・終端でないこと）、親 Task が `paused`・終端でないこと（親 Task が別 Ticket 起因で `waiting`・`blocked` であっても独立した実行可能 Ticket・Job は開始できる）、対象 Ticket の `worker_id`・`session_id` の一致、および先行 Job に対する停止確認または安全条件の確認。
 - [必須] Ticket は全 Job が `completed` または `canceled` になれば `completed` にする。
 - [必須] Ticket 自身がキャンセル済みなら `canceled` を維持し、中止理由（`cancel_reason`）を必須保持する。
@@ -279,19 +279,17 @@
 
 ## 9. Run（実行試行と待機制御）
 
-- [定義] `Run` は Job の1回の実行試行を記録する正本。
+- [定義] `Run` は Job の1回の実行試行を記録する正本。実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
 - [必須] `id: string`：実行試行を識別する ID（接頭辞 `run-` 必須）。
 - [必須] `ticket_id: string`：所属する Ticket の ID（`tkt-*`）。
 - [必須] `job: string`：実行した Job の ID（`job-*`）。
 - [必須] `worker_id: string`：当該 Ticket の `Worker.id`（`wkr-*`）。
 - [必須] `session_id: string`：実行を担当する単一の `Session.id`（`ssn-*`）。
-- [必須] `started: string`（条件付き必須）：実作業の開始を確定した Run では開始時刻（ISO 8601）を必須記録する。起動前予約（`activity: "unstarted"`）のまま、または実作業を開始せずに取り消して `stopped` 等で終了閉鎖した Run には開始事実がないため、`started` を省略できる。
+- [必須] `started: string`：実作業開始時刻（ISO 8601）。
 - [任意] `ended: string`：終了時刻（ISO 8601。終了確定時に時刻を確認できる場合は記録する）。
-- [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`canceled`・`error` 等）。実行中は省略可、**Run の終了確定時は必須**とする。
-- [任意] `activity: string`：実行観測状態（`unstarted`・`alive`・`stopped`・`unknown`）。
-- [任意] `observed: string`：最終観測時刻（ISO 8601）。
+- [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`canceled`・`error` 等）。実行中は省略し、**Run の終了確定時は必須**とする。
 - [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`job_id`・`target`・`condition`・`since`・`resume_point`・`timeout`・待機解消/解除時の `resolved`）。Job 側ではなく Run 側で保持する。
-- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している Run の例。
+- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している Run の例（実行中のため `result` と `ended` はまだ無い）。
 
 ```json
 {
@@ -302,8 +300,6 @@
   "worker_id": "wkr-alpha",
   "session_id": "ssn-alpha-01",
   "started": "2026-01-01T01:00:00Z",
-  "activity": "alive",
-  "observed": "2026-01-01T01:05:00Z",
   "wait": {
     "job_id": "job-apply-staging",
     "target": "external-approval:staging-slot-7",
@@ -315,7 +311,7 @@
 }
 ```
 
-- [例] 次は停止確認済みの終了 Run（終了確定時に `result` を必須記録し、この時点で `run-write-invitation-01` は閉じる）。Heartbeat 途絶だけでは `unknown` であり、独立監視等による停止確認後にのみ `stopped` とする。
+- [例] 次は正常終了した Run（終了確定時に `result` と確認できた `ended` を記録し、この時点で `run-write-invitation-01` は閉じる）。
 
 ```json
 {
@@ -327,26 +323,7 @@
   "session_id": "ssn-alpha-01",
   "started": "2026-01-01T01:00:00Z",
   "ended": "2026-01-01T01:20:00Z",
-  "activity": "stopped",
-  "observed": "2026-01-01T01:20:00Z",
   "result": "succeeded"
-}
-```
-
-- [例] 次は起動前予約（`unstarted`）を実作業開始前に取り消して閉鎖した Run（`unstarted → stopped`）。実作業を開始していないため `started` を持たず、終了 `result` のみを記録する。
-
-```json
-{
-  "protocol": "TTJ/1.1.0",
-  "id": "run-staging-apply-00",
-  "ticket_id": "tkt-deploy-staging-01",
-  "job": "job-apply-staging",
-  "worker_id": "wkr-alpha",
-  "session_id": "ssn-alpha-01",
-  "ended": "2026-01-01T00:55:00Z",
-  "activity": "stopped",
-  "observed": "2026-01-01T00:55:00Z",
-  "result": "canceled"
 }
 ```
 
@@ -358,7 +335,6 @@
 - [任意] `worker_id: string | null`：対象 Ticket の `Worker.id`（`wkr-*`）。
 - [任意] `session_id: string | null`：対象 Ticket を担当する `Session.id`（`ssn-*`）。
 - [任意] `current_job_id: string | null`：現在 Job の ID（`job-*`）。
-- [任意] `activity: string`：実行観測の要約（`unstarted`・`alive`・`stopped`・`unknown`）。
 - [任意] `context: string`：現在の作業文脈・申し送り・次の操作（再開に不可欠な条件は正本にも必ず残す）。
 - [任意] `stop_position: string`：停止位置の要約。
 - [任意] `blockers: array<string>`：現在把握しているブロッカー一覧。
@@ -375,7 +351,6 @@
   "worker_id": "wkr-alpha",
   "session_id": "ssn-alpha-02",
   "current_job_id": "job-apply-review-fixes",
-  "activity": "alive",
   "context": "レビュー指摘3件のうち日時表記と申込URLを修正済み。残り1件の会場アクセス表記を反映中。",
   "stop_position": "会場アクセス節の照合前",
   "blockers": [],

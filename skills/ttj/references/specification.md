@@ -181,9 +181,9 @@
 
 - [必須] **遷移の検証**：通常経路または Ticket の集約規則、親子規則、および操作種別に応じた認可条件を満たす。拒否時は正本を一切変更しない。
   - [禁止] 定義外の状態・遷移、および対象 Ticket の担当外 Session や閉じた `Run.id` からの状態遷移。
-  - [定義] 同じ状態での説明・観測・履歴更新は状態遷移に含めない。
+  - [定義] 同じ状態での説明・履歴更新は状態遷移に含めない。
 - [必須] **実行操作の認可**：
-  - [必須] **Run 開始操作**：実行 Session が対象 Ticket の `worker_id`（`wkr-*`）および `session_id`（`ssn-*`）と一致する生存中の適格 Session であり、対象現在 Job、開始状態ガード（対象 Ticket/Job が `todo` または `doing`、前提 `depends` 全 `completed`、親 Task が `paused`・終端でない）、および同一 Ticket で他に未終了の有効な `Run` が存在しないことを検証して新しい `Run`（`run-*`）を開始する。
+  - [必須] **Run 開始操作**：実行 Session が対象 Ticket の `worker_id`（`wkr-*`）および `session_id`（`ssn-*`）と一致する適格 Session であり、対象現在 Job、開始状態ガード（対象 Ticket/Job が `todo` または `doing`、前提 `depends` 全 `completed`、親 Task が `paused`・終端でない）、および同一 Ticket で他に未終了の有効な `Run` が存在しないことを検証して新しい `Run`（`run-*`）を開始する。
   - [必須] **Run の実行更新・結果確定操作**：対象 Ticket の `worker_id`・`session_id` と一致する Session であり、対象現在 Job で現在稼働中の有効な `Run.id` であることを照合する。閉じた旧 `Run.id` や別 Session からの更新は拒否する。
 - [必須] **管理・評価・証拠取り込み操作の認可**：すべての経路で認可主体の検証・終端状態（`completed`/`canceled`）の復活禁止・監査記録（操作主体・時刻・理由・対象・変更前後）を必須適用する。
   - [必須] **管理操作**：単一 Owner（または権限を持つ運用主体）による Task・Ticket・Job の明示保留（`paused`）・明示解除・中止（`canceled`）・障害解消確認後の `blocked` 復帰・依存変更・範囲変更。
@@ -227,8 +227,8 @@
   - [必須] 明示保留（`paused`）では、既存実行の安全な停止・中断を求める。
 - [必須] **Job 完了**：確認可能な証拠に基づき Job の `criteria` をすべて満たした時点で `completed` とし、`result` および必要な成果物参照を残す。
 - [任意] **Job の中止**：必要な Job だけを理由を残して `canceled` にし、後続を続ける。
-  - [必須] **中止確定と同時の Run 閉鎖**：該当 Job で実行中の Run がある場合、Job の `canceled` 確定と同時に当該 `Run.id` を閉鎖（終了 `result: "canceled"` 等を記録）し、停止要求を発行する。
-  - [必須] **後続 Job 開始前の停止・安全確認**：後続 Job を開始する前に、前の Job の実行に対する「停止確認（`stopped`）**または**副作用重複・残存副作用がない安全条件」を確認する（残存副作用の疑いがある場合は安全確認完了まで後続 Job 開始を保留する）。
+  - [必須] **中止確定と同時の Run 閉鎖**：該当 Job で実行中の Run がある場合、Job の `canceled` 確定と同時に当該 `Run.id` を終了（`result: "canceled"` 等を記録して閉鎖）し、停止要求を発行する。
+  - [必須] **後続 Job 開始前の停止・安全確認**：後続 Job を開始する前に、前の Job の実行が停止（または副作用重複・残存副作用がない安全条件）していることを確認する（残存副作用の疑いがある場合は安全確認完了まで後続 Job 開始を保留する）。
   - [禁止] 中止した Job が目標を達成したとみなす。
 - [必須] **Ticket 完了**：全 Job が `completed` または `canceled` になれば `completed` にする。
   - [必須] 自身がすでに `canceled` なら、その状態を維持する。
@@ -282,14 +282,13 @@
   - [推奨] 修復用 Ticket を、元 Ticket の処理完了待ち（`depends`）にしない。
   - [禁止] 別 Ticket の完了だけを理由に元 Ticket の障害を自動解除する。
 
-## 8. Run・生存判定・再試行と再開不可時の引き継ぎ
+## 8. Run・再試行と再開不可時の引き継ぎ
 
 ### 8.1. Run（実行試行の正本）
 
 - [定義] **Run**：Job の1回の実行試行（Execution / Attempt に相当）を記録する正本。
-  - [必須] `id`（接頭辞 `run-`）・`ticket_id`（接頭辞 `tkt-`）・`job`（接頭辞 `job-`）・`worker_id`（接頭辞 `wkr-`）・`session_id`（接頭辞 `ssn-`）を追跡する。
-  - [必須] **実作業の開始事実と `started`**：実作業の開始を確定した Run では `started`（開始時刻）を必須記録する。起動前予約（`activity: "unstarted"`）のまま、または実作業を開始せずに取り消して `stopped` 等で終了閉鎖した Run には開始時刻が存在しないため、`started` を省略できる。
-  - [必須] Run の終了確定時に `result` を必須記録し、終了時刻を確認できる場合は `ended` も記録する。
+  - [必須] `id`（接頭辞 `run-`）・`ticket_id`（接頭辞 `tkt-`）・`job`（接頭辞 `job-`）・`worker_id`（接頭辞 `wkr-`）・`session_id`（接頭辞 `ssn-`）・`started`（実作業開始時刻 ISO 8601）を記録する。
+  - [必須] Run は実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（`succeeded`・`failed`・`canceled`・`interrupted`・`error` 等）を必須記録し、終了時刻を確認できる場合は `ended` も記録する。
   - [必須] `Run.worker_id` と `Run.session_id` は対象 Ticket の `worker_id` および `session_id` と一致する。
   - [必須] 同一 Ticket で同時に稼働する有効な実行試行（`Run`）は最大1つとする。
   - [必須] 正常終了・異常終了・Job 単独中止・Ticket 中止により Run が終了確定した時点でその `Run.id` を即座に閉じ、閉じた `Run.id` からの後着結果・業務状態更新・Handoff 更新を拒否する。
@@ -308,8 +307,8 @@
 ### 8.2. 同一 Ticket・同一 Session 内での Job 再試行
 
 - [必須] **回復可能な中断と再試行**：同一 Ticket・同一 Session 内で一時的なエラーやタイムアウトにより 1 回目の `Run` が `result: "failed"` 等で終了したものの、同じ作業計画のまま回復可能である場合は、計画の破綻と区別する。
-  - [必須] 元の Ticket・Job の `status` が `doing` ならその状態を維持し、失敗した旧 `Run` に `result: "failed"`（および `ended`、`activity: "stopped"`）を記録して閉じる。
-  - [必須] 前の実行の停止確認**または**残存副作用がない安全条件を確認した上で、同一 Ticket・同一 Session で新しい `Run`（`run-*`）を追加して再試行する。
+  - [必須] 元の Ticket・Job の `status` が `doing` ならその状態を維持し、失敗した旧 `Run` に `result: "failed"`（および確認できれば `ended`）を記録して閉じる。
+  - [必須] 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket・同一 Session で新しい `Run`（`run-*`）を追加して再試行する。
   - [禁止] Run の 1 回の終了・失敗だけで即座に Job や Ticket の完了・中止・ブロックを判断する。
   - [禁止] 計画された再試行・タイムアウト処理が残る間、時間超過だけで `blocked` にする。
   - [禁止] 監視の再接続や同一操作の再送だけで、別の `Run` として二重登録する。
@@ -318,34 +317,14 @@
   - [任意] `priority` を開始順の判断材料にする。
   - [禁止] 低い優先度だけで `paused` にする。
 
-### 8.3. プロセス・Session 生存判定
-
-- [定義] **生存観測**：Run の実行プロセス・Session の状態を `activity` と観測時刻 `observed` で追跡する。
-  - [定義] `unstarted`：起動前（予約登録のみで実作業未開始）。
-  - [定義] `alive`：生存確認済み（稼働中）。
-  - [定義] `stopped`：停止確認済み（信頼できる監視により、当該 Run の実行主体および配下の実行コンテキストが終了し、新規の副作用操作を開始できない状態であることを確認した確定値）。
-  - [定義] `unknown`：状態不明（確認不能・生存観測の有効期間超過）。
-- [必須] **Heartbeat と停止確認の区別**：Heartbeat の途絶・監視タイムアウト・無出力・接続断・停止要求の送信単独で `stopped`（停止確認済み）と確定しない。
-  - [必須] 生存観測（`alive`）の有効期間を定め、最終観測時刻から有効期間を超過した場合は実効値を `unknown` にする。一方、同一 Run で一度確定した `stopped` は終端観測値であり、時間経過で `unknown` に戻さない。
-  - [必須] 停止確認（`stopped`）と、停止前に開始された外部操作・障害注入の残存副作用がないことの確認（安全条件）を区別して評価する。
-- [必須] **独立監視による停止証拠記録と業務更新の分離**：実行主体から独立した信頼できる監視機構は、専用の観測記録経路により対象 Run の `activity: "stopped"` と `observed`・停止証拠のみを記録できる（監査記録に監視主体と観測時刻を残す）。閉じた旧 Run による業務状態・結果・Handoff の更新経路とは厳格に分離し、後者は常に拒否する。
-- [任意] **activity の許可遷移**：起動前は `unstarted` から `unknown`・`alive`・`stopped` に移る（実作業開始前に取り消して `unstarted → stopped` とした Run は `started` を持たず終了 `result` のみ持つ）。
-  - [任意] 同じ Run では `unknown → alive`・`unknown → stopped`・`alive → unknown`・`alive → stopped` に移る。
-  - [禁止] 同じ Run の `stopped → alive`・`stopped → unknown`、起動後の `unstarted` 復帰。
-  - [必須] 再起動・再試行は新しい `Run` とし、前 Run の履歴を残す。
-  - [任意] プロセスを監視しない作業では観測項目を省略できるが、停止未確認のまま後続 Ticket による引き継ぎ実行を許可してはならない。
-- [推奨] 中断した Run の残存プロセスは独立した監視・管理機構により終了処理する。
-- [禁止] 観測結果だけで作業を `completed` や `canceled` にする。
-
-### 8.4. Worker / Session 再開不可時の旧 Ticket 中止と新規 Ticket 起票
+### 8.3. Worker / Session 再開不可時の旧 Ticket 中止と新規 Ticket 起票
 
 - [必須] **担当セッション不変の原則**：1つの Ticket の担当（`worker_id`・`session_id`）は途中で変わらない。担当 Worker または担当 Session が無応答・再開不可となった場合は、既存 Ticket の `worker_id` や `session_id` を付け替えるのではなく、旧 Ticket を閉じて新規 Ticket を起票し、新しい Session で稼働させる。
 - [必須] **新規 Ticket 引き継ぎの可否条件**：
-  - [必須] **稼働中**（対象 Ticket に `activity: "alive"` の Run が残存、`waiting` かつ稼働中を含む）：Handoff 参照は可、旧 Ticket の強制引き継ぎは不可。
-  - [必須] **状態不明**（対象 Ticket に `activity: "unknown"` の Run が残存、Heartbeat 途絶で停止未確認を含む）：Handoff 参照は可、停止未確認のままの新規 Ticket 引き継ぎは不可。
-  - [必須] **停止確認済み**（対象 Ticket の過去 Run がすべて `activity: "stopped"`、`waiting` 中の停止確認済みを含む）：Handoff 参照は可、**残存副作用がない安全条件成立時のみ**旧 Ticket を中止して新規 Ticket へ引き継ぎ可（停止前に開始された外部操作や副作用の残存が疑われる場合は安全確認・復旧完了まで保留）。
+  - [禁止] 前の実行が稼働中または停止未確認の状態で旧 Ticket を強制引き継ぎする（Handoff の閲覧は可）。
+  - [必須] 前の実行が停止（または残存副作用がない安全条件）していることを確認できた場合のみ、旧 Ticket を中止して新規 Ticket へ引き継ぐ（停止前に開始された外部操作や副作用の残存が疑われる場合は安全確認・復旧完了まで保留）。
 - [必須] **旧 Ticket の閉鎖と新規 Ticket の作成手順**：
-  1. 旧 Ticket の実行中 Run の停止確認（`activity: "stopped"`, `result: "interrupted"` 等）および安全条件成立を確認する。
+  1. 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、旧 Run を終了（`result: "canceled"` または `"interrupted"` 等、確認できれば `ended` を記録）して閉鎖する。
   2. 旧 Ticket（および未完了の Job）を中止理由（`cancel_reason`）付きで `status: "canceled"` として終端化・閉鎖する（旧 Ticket の `worker_id`・`session_id` および完了済み Job の成果はそのまま保持する）。
   3. 同一 Task 配下に、新しい担当セッション（別 Worker の `wkr-*` / `ssn-*`、または同一 Worker の新しい `ssn-*`）を持つ新規 Ticket（`tkt-*`）を起票し、`refs`（`kind: "derived_from"` や `"rerun_of"` 等）で旧 Ticket を参照し、必要に応じて Task の揮発性 `Handoff` で作業文脈を引き継いで新 Session で `Run` を開始する。
 
@@ -354,7 +333,7 @@
 ### 9.1. Task 所属の揮発性 Handoff
 
 - [定義] **Handoff**：`Task` に所属する揮発性の単一スロット（Task ごとに最大1つ）。
-  - [必須] `task_id`（`tsk-*`）を持ち、状況に応じて `current_ticket_id`（`tkt-*`）・`worker_id`（`wkr-*`）・`session_id`（`ssn-*`）・`current_job_id`（`job-*`）・`activity`・`context`（および `stop_position`・`blockers`・`notes`・`updated` 等）を保持する。
+  - [必須] `task_id`（`tsk-*`）を持ち、状況に応じて `current_ticket_id`（`tkt-*`）・`worker_id`（`wkr-*`）・`session_id`（`ssn-*`）・`current_job_id`（`job-*`）・`context`（および `stop_position`・`blockers`・`notes`・`updated` 等）を保持する。
   - [必須] Task への参照権限を持つ複数の Session が同時に閲覧できる。
   - [必須] 閲覧権限と実行権限を厳格に分離し、Handoff を閲覧できることを Ticket の実行権限と同一視しない。
   - [禁止] Handoff 自体にコマンド実行機能や状態遷移を直接引き起こす機能を持たせる。
@@ -402,19 +381,18 @@
 - [禁止] 10. 循環する完了依存を許す。
 - [禁止] 11. Handoff の閲覧権限を実行権と同一視する。
 - [禁止] 12. Worker が同じという理由で別 Session に無断実行させる。
-- [禁止] 13. 稼働中（`alive`）の Session から作業を強制引き継ぎする。
-- [禁止] 14. 停止未確認（`unknown`）の Session から作業を強制引き継ぎする。
-- [禁止] 15. Heartbeat 切断のみで停止確認済み（`stopped`）とする。
-- [禁止] 16. Handoff を正式履歴の正本にする、または Task 完了後も恒久 Handoff として残す。
-- [禁止] 17. Handoff によって無関係な Ticket を直列化する。
-- [禁止] 18. 特定の Agent・Bot・オーケストレーターへの依存を TTJ へ組み込む。
+- [禁止] 13. 稼働中の Session から作業を強制引き継ぎする。
+- [禁止] 14. 前の実行の停止（または残存副作用がない安全条件）を確認せずに作業を引き継ぐ。
+- [禁止] 15. Handoff を正式履歴の正本にする、または Task 完了後も恒久 Handoff として残す。
+- [禁止] 16. Handoff によって無関係な Ticket を直列化する。
+- [禁止] 17. 特定の Agent・Bot・オーケストレーターへの依存を TTJ へ組み込む。
 
 ### 10.2. 記録と適合確認
 
 - [任意] **保存形式**：意味と参照を保てれば、保存先・データ構造・UI 等を選べる。
   - [禁止] 特定の保存期間や自動削除を規格として強制する。
-- [必須] **管理記録**：作成・状態変更・開始・結果・中止・異常停止・再試行・再開不可時の旧 Ticket 中止と新規 Ticket 起票・依存変更・範囲変更・期限変更・知識の採用・独立監視による停止確認・管理/評価/証拠取り込み操作を追跡する。
-  - [必須] 変更前後・主体（`worker_id`・`session_id`、または管理・監視主体）・時刻・理由と関連する実行（`run`）を識別する。
+- [必須] **管理記録**：作成・状態変更・開始・結果・中止・異常停止・再試行・再開不可時の旧 Ticket 中止と新規 Ticket 起票・依存変更・範囲変更・期限変更・知識の採用・管理/評価/証拠取り込み操作を追跡する。
+  - [必須] 変更前後・主体（`worker_id`・`session_id`、または管理主体）・時刻・理由と関連する実行（`run`）を識別する。
   - [任意] 時刻等は更新手段が補完する。
   - [禁止] 補完できない事実を捏造する。
 - [必須] **整合性**：現在状態・現行 Run・管理情報・履歴を原子的に確定する。
@@ -429,7 +407,7 @@
 - [必須] **適合確認**：7種の ID 接頭辞（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Run の正本化・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
   - [必須] 全 Job 終端時の Ticket 完了と、Ticket 自身の中止優先を確認する。
   - [必須] 中止 Job を含む Ticket の処理終了や Ticket 完了数と、Task の目標達成を区別する。
-  - [必須] 同一 Worker の別 Session 無断実行、閉じた旧 Run 結果からの更新、稼働中・状態不明時の引き継ぎを拒否する。
+  - [必須] 同一 Worker の別 Session 無断実行、閉じた旧 Run 結果からの更新、前の実行が稼働中・停止未確認時の引き継ぎを拒否する。
   - [必須] Handoff 消失および再起動後も Task・Ticket・Job・中止理由・Artifact・正本 `resume`・Run の正式履歴から再開判断できることを確認する。
   - [必須] 独立した Ticket の並列実行と、次 Ticket 未作成での終了 Ticket アーカイブ・折りたたみが妨げられないことを確認する。
   - [必須] 短期の揮発性 Handoff と、採用中（`active`）および過去（`supersed`）の長期知識を区別して参照できる。

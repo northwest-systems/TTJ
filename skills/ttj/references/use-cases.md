@@ -28,8 +28,8 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **正式作成と初期状態**：Task・Ticket・Job の初期 `status` はすべて `"todo"`。Ticket は直接 `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）を変更しない。
-- **Run 開始**：対象 Ticket の `worker_id`・`session_id` と一致する Session が初回 `Run`（`run-*`）を作成し、実作業開始と同時に Job・Ticket・`todo` の親 Task を一括で `status: "doing"` に遷移させ、`Run.started` と `Run.activity: "alive"` を記録する。
-- **完了（completed / succeeded）と `status` / `result` 分離**：TTJ 1.1.0 では「作業工程の完了」を Task・Ticket・Job の `status: "completed"` で表し、Job の業務判定を `Job.result`（例：`"passed"`）、実行試行の成功を `Run.result: "succeeded"`（`activity: "stopped"`, `ended` 記録）として明確に分離する。
+- **Run 開始**：対象 Ticket の `worker_id`・`session_id` と一致する Session が初回 `Run`（`run-*`）を作成し、実作業開始と同時に Job・Ticket・`todo` の親 Task を一括で `status: "doing"` に遷移させ、`Run.started` を記録する（実行中のため `result` と `ended` はまだ無い）。
+- **完了（completed / succeeded）と `status` / `result` 分離**：TTJ 1.1.0 では「作業工程の完了」を Task・Ticket・Job の `status: "completed"` で表し、Job の業務判定を `Job.result`（例：`"passed"`）、実行試行の成功を `Run.result: "succeeded"`（および `ended` 記録）として明確に分離する。
 
 ### サンプル JSON パターン
 
@@ -130,9 +130,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
     "job": "job-code-handler-01",
     "worker_id": "wkr-01",
     "session_id": "ssn-wkr01-01",
-    "started": "2026-02-01T09:05:00Z",
-    "activity": "alive",
-    "observed": "2026-02-01T09:10:00Z"
+    "started": "2026-02-01T09:05:00Z"
   }
 }
 ```
@@ -202,8 +200,6 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T09:05:00Z",
       "ended": "2026-02-01T09:20:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T09:20:00Z",
       "result": "succeeded"
     },
     {
@@ -214,8 +210,6 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T09:21:00Z",
       "ended": "2026-02-01T09:30:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T09:30:00Z",
       "result": "succeeded"
     }
   ]
@@ -231,7 +225,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-01`, `wkr-02`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `worker_id` と `session_id` を設定する。
-- **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 所属の単一スロット `Handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #17）。
+- **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 所属の単一スロット `Handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
 
 ### サンプル JSON パターン
 
@@ -302,9 +296,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "job": "job-impl-search-api",
       "worker_id": "wkr-01",
       "session_id": "ssn-wkr01-01",
-      "started": "2026-02-01T10:01:00Z",
-      "activity": "alive",
-      "observed": "2026-02-01T10:05:00Z"
+      "started": "2026-02-01T10:01:00Z"
     },
     {
       "id": "run-search-ui-01",
@@ -312,9 +304,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "job": "job-impl-search-ui",
       "worker_id": "wkr-02",
       "session_id": "ssn-wkr02-01",
-      "started": "2026-02-01T10:01:30Z",
-      "activity": "alive",
-      "observed": "2026-02-01T10:05:00Z"
+      "started": "2026-02-01T10:01:30Z"
     }
   ]
 }
@@ -480,8 +470,6 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
     "worker_id": "wkr-01",
     "session_id": "ssn-wkr01-01",
     "started": "2026-02-01T12:00:00Z",
-    "activity": "alive",
-    "observed": "2026-02-01T12:05:00Z",
     "wait": {
       "job_id": "job-apply-prod-deploy",
       "target": "change-gate:chg-2026-0201",
@@ -538,8 +526,6 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
     "session_id": "ssn-wkr01-01",
     "started": "2026-02-01T12:00:00Z",
     "ended": "2026-02-01T12:10:00Z",
-    "activity": "stopped",
-    "observed": "2026-02-01T12:10:00Z",
     "result": "interrupted",
     "wait": {
       "job_id": "job-apply-prod-deploy",
@@ -562,7 +548,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **回復可能な中断と Job `status: "doing"` の維持**：Run が 1 回失敗・終了しただけで即座に Job や Ticket を `completed`・`canceled`・`blocked` にしてはならない（[規格本文](specification.md) §8.2）。同一計画・同一 Session で再試行できる間は Job・Ticket ともに `status: "doing"` を維持する。
-- **旧 Run の閉鎖と新 Run の追加**：旧 Run（`run-integration-01`）の終了確定時に `result: "failed"`、`ended`、`activity: "stopped"` を記録して閉じ、同一 Ticket（`tkt-verify-api-01`）・同一 Session（`ssn-wkr01-01`）で新しい `Run`（`run-integration-02`）を追加して再試行する。
+- **旧 Run の閉鎖と新 Run の追加**：旧 Run（`run-integration-01`）の終了確定時に `result: "failed"`（および `ended`）を記録して閉じ、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket（`tkt-verify-api-01`）・同一 Session（`ssn-wkr01-01`）で新しい `Run`（`run-integration-02`）を追加して再試行する。
 
 ### サンプル JSON パターン
 
@@ -599,8 +585,6 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     "session_id": "ssn-wkr01-01",
     "started": "2026-02-01T13:00:00Z",
     "ended": "2026-02-01T13:04:00Z",
-    "activity": "stopped",
-    "observed": "2026-02-01T13:04:00Z",
     "result": "failed"
   }
 }
@@ -631,8 +615,6 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T13:00:00Z",
       "ended": "2026-02-01T13:04:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T13:04:00Z",
       "result": "failed"
     },
     {
@@ -641,9 +623,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "job": "job-run-integration",
       "worker_id": "wkr-01",
       "session_id": "ssn-wkr01-01",
-      "started": "2026-02-01T13:06:00Z",
-      "activity": "alive",
-      "observed": "2026-02-01T13:08:00Z"
+      "started": "2026-02-01T13:06:00Z"
     }
   ]
 }
@@ -658,9 +638,9 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **1つの Ticket の担当セッション不変の原則**：1つの Ticket の持ち主（`worker_id`・`session_id`）は途中で変わらない。担当 Session が再開不可になった場合は、同じ Ticket の持ち主を付け替えるのではなく、旧 Ticket を閉じて新規 Ticket として作り直し、新しい Session で稼働させる。
-- **Heartbeat 途絶（`unknown`）と停止確認済み（`stopped`）の厳格な区別**：Heartbeat 途絶やタイムアウトだけでは `Run.activity` は `"unknown"` となる。`alive` または `unknown` の Run が残存している間は後続 Ticket による引き継ぎ実行を開始してはならない（禁止事項 #13, #14, #15）。監視機構等により対象 Run の停止が確認されて `Run.activity: "stopped"` が記録され、かつ残存副作用がない安全条件が成立した場合のみ引き継ぎが許可される。
+- **引き継ぎ前の停止・安全確認**：前の実行が稼働中または停止未確認の間は、後続 Ticket による引き継ぎ実行を開始してはならない（禁止事項 #13, #14）。前の実行が停止（または残存副作用がない安全条件）していることを確認できた場合のみ引き継ぎが許可される。
 - **旧 Ticket の閉鎖と新規 Ticket の起票（別 Worker でも同一 Worker の新 Session でも同一方式）**：
-  - 旧 Ticket `tkt-deploy-01`（`worker_id: "wkr-01"`, `session_id: "ssn-wkr01-01"`）を `status: "canceled"`（`cancel_reason` 必須、未完了 Job も `canceled`、旧 Run は `activity: "stopped"`, `result: "interrupted"`）として閉鎖する。
+  - 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、旧 Run を終了（`result: "canceled"` または `"interrupted"` 等、確認できれば `ended` を記録）し、旧 Ticket `tkt-deploy-01`（`worker_id: "wkr-01"`, `session_id: "ssn-wkr01-01"`）を `status: "canceled"`（`cancel_reason` 必須、未完了 Job も `canceled`）として閉鎖する。
   - 同一 Task 配下に新規 Ticket `tkt-deploy-02`（`refs` に `tkt-deploy-01` を指定）を起票し、新しい担当 Session（別 Worker `wkr-02` の `ssn-wkr02-01`、または同一 Worker `wkr-01` の新 Session `ssn-wkr01-02`）を設定して新しい `Run` を開始する。
 
 ### サンプル JSON パターン
@@ -682,7 +662,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
         "job-smoke-test-01"
       ],
       "status": "canceled",
-      "cancel_reason": "ssn-wkr01-01 の異常停止確認（activity: stopped）および環境安全確認完了に伴い旧Ticketを中止し、新規Ticket tkt-deploy-02 (wkr-02 / ssn-wkr02-01) へ引き継ぐ。",
+      "cancel_reason": "ssn-wkr01-01 の停止および残存副作用がない安全条件を確認した上で旧Ticketを中止し、新規Ticket tkt-deploy-02 (wkr-02 / ssn-wkr02-01) へ引き継ぐ。",
       "artifacts": [
         "packages/app-v110.tar.gz"
       ]
@@ -743,8 +723,6 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T14:00:00Z",
       "ended": "2026-02-01T14:15:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T14:18:00Z",
       "result": "interrupted"
     },
     {
@@ -753,9 +731,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
       "job": "job-smoke-test-02",
       "worker_id": "wkr-02",
       "session_id": "ssn-wkr02-01",
-      "started": "2026-02-01T14:21:00Z",
-      "activity": "alive",
-      "observed": "2026-02-01T14:22:00Z"
+      "started": "2026-02-01T14:21:00Z"
     }
   ]
 }
@@ -790,9 +766,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     "job": "job-smoke-test-02",
     "worker_id": "wkr-01",
     "session_id": "ssn-wkr01-02",
-    "started": "2026-02-01T14:21:00Z",
-    "activity": "alive",
-    "observed": "2026-02-01T14:22:00Z"
+    "started": "2026-02-01T14:21:00Z"
   }
 }
 ```
@@ -807,7 +781,7 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **Task 所属の揮発性単一スロット**：v1.1.0 では旧 `Ticket.handoffs` を廃止し、`Task` ごとに最大1つの揮発性 `Handoff` スロットを持つ。
 - **閲覧権限と実行権限の分離**：Handoff は Task 参照権限を持つ複数 Session から閲覧できるが、Handoff を閲覧できることは Ticket の実行権限を意味しない（禁止事項 #11）。
-- **正本保存の原則と Task 完了時の揮発・消去**：再開に必須の条件（`resume`, `Run.wait`, `cancel_reason`, `artifacts`）は必ず永続正本側に保存し、Handoff を正式履歴の正本にしてはならない（禁止事項 #16）。Task 完了時に Handoff スロットを消去しても正式履歴は一切失われず、再利用する恒久知見のみを選別して `Project.knowledge`（`status: "active"`）へ記録する。
+- **正本保存の原則と Task 完了時の揮発・消去**：再開に必須の条件（`resume`, `Run.wait`, `cancel_reason`, `artifacts`）は必ず永続正本側に保存し、Handoff を正式履歴の正本にしてはならない（禁止事項 #15）。Task 完了時に Handoff スロットを消去しても正式履歴は一切失われず、再利用する恒久知見のみを選別して `Project.knowledge`（`status: "active"`）へ記録する。
 
 ### サンプル JSON パターン
 
@@ -837,7 +811,6 @@ Job の 1 回目の実行試行（`run-integration-01`）が一時的な通信�
     "worker_id": "wkr-01",
     "session_id": "ssn-wkr01-01",
     "current_job_id": "job-run-benchmark",
-    "activity": "alive",
     "context": "TTLを300秒に変更した cache-ttl-v2.yaml を反映済み。現在ベンチマーク計測を実行中。",
     "stop_position": "job-run-benchmark のウォームアップ完了後・本計測ステップ",
     "blockers": [],
@@ -899,8 +872,8 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **単独 Job の中止（後続 Job を続ける場合）**：
-  - 対象 Job を `status: "canceled"` に確定すると同時に、実行中の Run があれば閉鎖（`Run.result: "canceled"`, `Run.activity: "stopped"`）して停止要求を発行する。
-  - 後続 Job の新 Run を開始する前に、前の Job の実行に対する「停止確認（`stopped`）**または**残存副作用がない安全条件」を確認する。全 Job が `completed` または `canceled` になれば Ticket は `status: "completed"` に集約される（ただし中止した Job の目標を達成したとはみなさない）。
+  - 対象 Job を `status: "canceled"` に確定すると同時に、実行中の Run があれば終了（`Run.result: "canceled"` 等を記録して閉鎖）し、停止要求を発行する。
+  - 後続 Job の新 Run を開始する前に、前の Job の実行が停止（または残存副作用がない安全条件）していることを確認する。全 Job が `completed` または `canceled` になれば Ticket は `status: "completed"` に集約される（ただし中止した Job の目標を達成したとはみなさない）。
 - **Task 全体（または Ticket 全体）の中止**：
   - 親 Task を `status: "canceled"` にすると、配下の**未終端の Ticket・Job もすべて同時に `status: "canceled"`** に確定し、実行中の Run も閉鎖する（既に `completed` になっていた終端済みの子孫は変更せず保持する）。
   - 中止された各 Ticket には **`cancel_reason` の記録が必須**。Ticket 自身の中止は全 Job 終端による `completed` 集約より常に優先される。
@@ -963,8 +936,6 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T16:10:00Z",
       "ended": "2026-02-01T16:11:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T16:11:00Z",
       "result": "canceled"
     },
     {
@@ -975,8 +946,6 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "session_id": "ssn-wkr01-01",
       "started": "2026-02-01T16:12:00Z",
       "ended": "2026-02-01T16:15:00Z",
-      "activity": "stopped",
-      "observed": "2026-02-01T16:15:00Z",
       "result": "succeeded"
     }
   ]
@@ -1186,9 +1155,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
     "job": "job-add-rotation-section",
     "worker_id": "wkr-01",
     "session_id": "ssn-wkr01-02",
-    "started": "2026-02-01T17:00:00Z",
-    "activity": "alive",
-    "observed": "2026-02-01T17:05:00Z"
+    "started": "2026-02-01T17:00:00Z"
   }
 }
 ```
@@ -1205,7 +1172,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 - **Ticket 肥大化対策と Task 完了判定**：
   - `refs`（`fixes`, `derived_from`, `rerun_of`, `related`）によって「初稿 → 差し戻しレビュー → 修正 → 承認レビュー」の系列を構造化し、終了済み旧 Ticket を折りたたんで管理負荷を抑える。
   - **完了 Ticket 数だけで Task の達成率や完了を決めてはならない**（[規格本文](specification.md) §2・§6）。全 Ticket が終端状態であり、差し戻しや中止で未達だった必須範囲が後続 Ticket で解決され、`Task.criteria` をすべて満たしていることを確認して `Task.status: "completed"` とする。
-- **揮発性 Handoff の消去と長期知識の分離**：Task 完了時には全 Run が `activity: "stopped"` となり、Task 所属の揮発性 `Handoff` スロットは長期記憶として残さず破棄・消去する。将来再利用する恒久知見のみを `Project.knowledge`（`status: "active"`、旧知識の置換時は旧記録を `"supersed"` にして `supersedes` で参照）に昇格させて保持する。
+- **揮発性 Handoff の消去と長期知識の分離**：Task 完了時には全 Run が終了確定済みとなり、Task 所属の揮発性 `Handoff` スロットは長期記憶として残さず破棄・消去する。将来再利用する恒久知見のみを `Project.knowledge`（`status: "active"`、旧知識の置換時は旧記録を `"supersed"` にして `supersedes` で参照）に昇格させて保持する。
 
 ### サンプル JSON パターン
 
