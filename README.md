@@ -10,16 +10,17 @@
 Worker（責任主体：id: wkr-7c8d9e0f-1 等 / name）── Session（実行単位：id: ssn-2b3c4d5e-1 等 / worker_id）
                                                         │
 Project（id: pj-a1b2c3d4-1 等 / 名前を持つ継続領域・長期知識 knowledge）
-└── Task（id: tsk-e5f6a7b8-1 等 / 長寿命の成果目標・criteria・揮発性 Handoff 単一スロット）
+└── tasks[]（Task：id: tsk-e5f6a7b8-1 等 / 長寿命の成果目標・criteria・揮発性 Handoff 単一スロット）
     ├── Ticket A（id: tkt-c9d0e1f2-1 / worker_id: wkr-* / session_id: ssn-*）─┐
     ├── Ticket B（id: tkt-c9d0e1f2-2 / worker_id: wkr-* / session_id: ssn-*）─┴─→ Ticket C（depends で完了待ち / refs で情報共有参照）
-    └── Ticket（担当セッション固定・確定後は固定の Job 列・一方向進行）
-        └── Job 1 → Job 2 → …（id: job-1a2b3c4d-1, job-1a2b3c4d-2 等 / status と result を分離）
-            └── Run（id: run-5e6f7a8b-1 等 / 実行試行の正本・waiting 時の待機制御）
+    └── tickets[]（Ticket：担当セッション固定・確定後は固定の Job 列・一方向進行）
+        └── jobs[]（Job 1 → Job 2 → …：id: job-1a2b3c4d-1, job-1a2b3c4d-2 等 / status と result を分離）
+            └── runs[]（Run：id: run-5e6f7a8b-1 等 / 各 Job 内の実行試行の正本・waiting 時の待機制御）
 ```
 
 - [必須] **規格の識別**：独立した JSON 文書のルートに `protocol: "TTJ/1.1.0"` を持つ。
   - [定義] 子レコードは同じ版を共有し、転記は不要。
+- [必須] **配列キーへの統一（単数／複数でのキー名変化の廃止）**：要素数が 0 件（空配列 `[]`）・1 件（`[ {...} ]`）・複数件（`[ {...}, {...} ]`）のいずれであっても単数形と複数形でキー名を変えず、最初から複数形の配列キー（`projects`・`workers`・`sessions`・`tasks`・`tickets`・`jobs`・`runs` 等）で保持する（抜粋でも単数キー名は廃止し 1 要素の配列 `[ {...} ]` とする）。
 - [必須] **ID 自動採番形式**：重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`、例：`pj-a1b2c3d4-1`・`tsk-e5f6a7b8-1`・`tkt-c9d0e1f2-1`・`job-1a2b3c4d-1`・`run-5e6f7a8b-1`・`wkr-7c8d9e0f-1`・`ssn-2b3c4d5e-1`）に統一する。
 - [必須] **Worker と Session**：作業の責任主体（`Worker`：`id`（接頭辞 `wkr-`）・`name`）と実行単位（`Session`：`id`（接頭辞 `ssn-`）・`worker_id`）を分離する。
   - [禁止] `owner_type` の必須化や、Worker 種別による状態遷移の分岐。
@@ -35,12 +36,12 @@ Project（id: pj-a1b2c3d4-1 等 / 名前を持つ継続領域・長期知識 kno
   - [必須] 担当 Session が再開不可になった場合は、旧 Ticket を中止（`canceled` と `cancel_reason` を記録）して閉じ、同一 Task 配下に `refs` 付きの新規 Ticket を起票して新しい Session（`ssn-*`）で稼働させる。
   - [必須] 全 Job が `completed` または `canceled` になれば `completed` に集約し、Ticket 自身がキャンセル済みなら `canceled` と `cancel_reason` を維持する。
   - [定義] 次 Ticket が未作成でも終了済み Ticket をアーカイブできる。
-- [必須] **Job**：`id`（接頭辞 `job-`）・`objective`・`criteria`（任意で `instructions`）を持つ最小実行単位。
+- [必須] **Job**：`id`（接頭辞 `job-`）・`objective`・`criteria`・`runs`（任意で `instructions`）を持つ最小実行単位。
   - [必須] 進行状態 `status` と業務結果 `result`（`approved`・`changes_requested`・`passed`・`failed` 等）を分離する。
   - [禁止] 独立した `Request` オブジェクト、子 Job、複雑なワークフロー構造、種別ごとの Job 分類。
 - [任意] **実行依存と情報共有参照**：実行依存 `depends`（循環禁止）と、成果物・中止理由・派生関係等を共有する `refs` を明確に区別する。
-- [定義] **Run**：`Run`（`id` 接頭辞 `run-`）は実行試行の正本として `worker_id`・`session_id`・開始時刻（`started`）・待機制御（`wait`）・試行結果（`result`）を保持する（実行中は `result`・`ended` が無く、終了確定時に `result` と確認できれば `ended` を記録する）。
-  - [必須] 同一 Ticket・同一 Session 内での Job 再試行は、失敗した旧 Run を閉じて新しい Run を追加・実行する。
+- [定義] **Run**：各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）に保持される実行試行の正本。親 ID（`ticket_id`・`job`・`worker_id`・`session_id`・`wait.job_id`）の重複記載を持たず、`id`（接頭辞 `run-`）・開始時刻（`started`）・終了時刻（`ended`）・試行結果（`result`）・待機制御（`wait`）を保持する（実行中は `result`・`ended` が無く、終了確定時に `result` と確認できれば `ended` を記録する）。
+  - [必須] 同一 Ticket・同一 Session 内での Job 再試行は、失敗した旧 Run を閉じて当該 Job の `runs` 配列に新しい Run を追加・実行する。
   - [必須] 前の実行が停止（または残存副作用がない安全条件）していることを確認した上で旧 Run と旧 Ticket を閉鎖した場合のみ、新規 Ticket への引き継ぎを許可する。
 - [定義] **揮発性 Handoff と長期知識**：短期の引き継ぎは Task 所属の揮発性単一スロット `Handoff`（Task 完了時に消去）、長期知識は Project の `knowledge`（`active`・`supersed`）に分ける。
   - [必須] Handoff 消失でも正式履歴を失わず、無関係な Ticket の並列実行を遮らない。

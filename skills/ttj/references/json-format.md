@@ -7,6 +7,8 @@
 - [定義] 同じ文書の子レコードは同じ版として扱い、各レコードへの転記は不要。
 - [任意] `protocol` は生成側で補完し、以下の項目一覧では共通の記載を繰り返さない。
 - [任意] 各レコードを別ファイル・別形式で保存する。
+- [必須] **単数／複数でのキー名変化の廃止（配列への統一）**：`run` と `runs` のように同じものが1つか複数かでキー名が変わるのは非合理であるため、最初から配列（複数形キー：`projects`・`workers`・`sessions`・`tasks`・`tickets`・`jobs`・`runs` 等）で用意しておき、**空配列 `[]`、1つだけの配列 `[ {...} ]`、複数持つ配列 `[ {...}, {...} ]` のすべてを許容する**（抜粋サンプルであっても 1 要素の配列 `[ {...} ]` として表記し、単数キー名を廃止する）。
+- [必須] **`Run` の `Job` 内側（`jobs[].runs: [...]`）への配置**：`Run` は `Job` にかかる実行試行であるため、`Job` の外（`Ticket` 直下やルート直下）に出すのをやめ、**各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）** として保持する本来の階層構造（`Project → tasks[] → tickets[] → jobs[] → runs[]`）に統一する。
 - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
@@ -15,7 +17,7 @@
 - [必須] 新規作成時の作業状態は、未指定でも `todo`。
 - [定義] 任意の一覧を省略した新規レコードは、その一覧を空として扱う。
 - [必須] 更新で省略した項目は既存値を維持し、空にする場合は明示する。
-- [定義] 既存の参照名 `project`・`task`・`job`・`target` を維持しつつ、ID 参照名は `worker_id`・`session_id`・`task_id`・`ticket_id`・`current_ticket_id`・`current_job_id` に統一する。
+- [定義] 既存の参照名 `project`・`task`・`target` を維持しつつ、ID 参照名は `worker_id`・`session_id`・`task_id`・`ticket_id`・`current_ticket_id`・`current_job_id` に統一する。
 - [推奨] フィールド名はできるだけ1単語とし、意味を明確にする連結名を規格全体で統一して使う。
 
 ## 1. Worker
@@ -28,8 +30,12 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "wkr-7c8d9e0f-1",
-  "name": "Alpha"
+  "workers": [
+    {
+      "id": "wkr-7c8d9e0f-1",
+      "name": "Alpha"
+    }
+  ]
 }
 ```
 
@@ -44,9 +50,13 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "ssn-2b3c4d5e-1",
-  "worker_id": "wkr-7c8d9e0f-1",
-  "started": "2026-01-01T01:00:00Z"
+  "sessions": [
+    {
+      "id": "ssn-2b3c4d5e-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "started": "2026-01-01T01:00:00Z"
+    }
+  ]
 }
 ```
 
@@ -60,8 +70,12 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "pj-a1b2c3d4-1",
-  "name": "勉強会の運営"
+  "projects": [
+    {
+      "id": "pj-a1b2c3d4-1",
+      "name": "勉強会の運営"
+    }
+  ]
 }
 ```
 
@@ -83,13 +97,17 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tsk-e5f6a7b8-1",
-  "project": "pj-a1b2c3d4-1",
-  "objective": "勉強会の案内を用意する",
-  "criteria": [
-    "日時・会場・申込方法が正しい案内文が確定している"
-  ],
-  "deadline": "2026-01-08T18:00:00+09:00"
+  "tasks": [
+    {
+      "id": "tsk-e5f6a7b8-1",
+      "project": "pj-a1b2c3d4-1",
+      "objective": "勉強会の案内を用意する",
+      "criteria": [
+        "日時・会場・申込方法が正しい案内文が確定している"
+      ],
+      "deadline": "2026-01-08T18:00:00+09:00"
+    }
+  ]
 }
 ```
 
@@ -113,14 +131,18 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-c9d0e1f2-1",
-  "task": "tsk-e5f6a7b8-1",
-  "worker_id": "wkr-7c8d9e0f-1",
-  "session_id": "ssn-2b3c4d5e-1",
-  "objective": "案内文の初稿を作成し確認準備を整える",
-  "jobs": [
-    "job-1a2b3c4d-1",
-    "job-1a2b3c4d-2"
+  "tickets": [
+    {
+      "id": "tkt-c9d0e1f2-1",
+      "task": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内文の初稿を作成し確認準備を整える",
+      "jobs": [
+        "job-1a2b3c4d-1",
+        "job-1a2b3c4d-2"
+      ]
+    }
   ]
 }
 ```
@@ -135,18 +157,24 @@
 - [任意] `result: string`：`status` と分離された確認結果・業務判定（例：`passed`・`approved`・`changes_requested`・`failed`・`interrupted`・`error` 等）。
 - [任意] `artifacts: array<string>`：成果物・確認証拠の参照一覧。
 - [任意] `resume: string`：永続正本（`Run.wait`・管理履歴）から再開・障害解除条件が一意に分からない場合に1文で記載する（揮発性 `Handoff` への記載を理由に省略しない）。
+- [必須] `runs: array<object>`：各 `Job` オブジェクトの内部フィールドとして保持する実行試行（`Run`）の配列（未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）。`Run` を `Job` の外（`Ticket` 直下やルート直下）に出さない。
 - [定義] 親と順序は Ticket の `jobs` から分かるため、再記入しない。
 - [禁止] Job ごとの個別担当、複雑な分岐・子 Job・待機制御詳細、独立 `Request` オブジェクト、種別分類を追加する。
-- [例] 次は作成時の通常 Job。
+- [例] 次は作成時の通常 Job（未実行のため `runs: []`）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-1a2b3c4d-1",
-  "objective": "必要事項を揃えた案内文を作る",
-  "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
-  "criteria": [
-    "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
+  "jobs": [
+    {
+      "id": "job-1a2b3c4d-1",
+      "objective": "必要事項を揃えた案内文を作る",
+      "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
+      "criteria": [
+        "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
+      ],
+      "runs": []
+    }
   ]
 }
 ```
@@ -156,15 +184,27 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-1a2b3c4d-3",
-  "objective": "案内文の記載内容を確認しレビュー結果を返す",
-  "criteria": [
-    "元の開催情報との照合結果と判定が記録されている"
-  ],
-  "status": "completed",
-  "result": "changes_requested",
-  "artifacts": [
-    "review-notes/invitation-rev1.md"
+  "jobs": [
+    {
+      "id": "job-1a2b3c4d-3",
+      "objective": "案内文の記載内容を確認しレビュー結果を返す",
+      "criteria": [
+        "元の開催情報との照合結果と判定が記録されている"
+      ],
+      "status": "completed",
+      "result": "changes_requested",
+      "artifacts": [
+        "review-notes/invitation-rev1.md"
+      ],
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-3",
+          "started": "2026-01-01T02:00:00Z",
+          "ended": "2026-01-01T02:15:00Z",
+          "result": "succeeded"
+        }
+      ]
+    }
   ]
 }
 ```
@@ -174,15 +214,27 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "job-1a2b3c4d-4",
-  "objective": "公開前検証を実行し結果を記録する",
-  "criteria": [
-    "全検証コマンドの実行ログと合否判定が保存されている"
-  ],
-  "status": "completed",
-  "result": "failed",
-  "artifacts": [
-    "logs/release-checks-01.log"
+  "jobs": [
+    {
+      "id": "job-1a2b3c4d-4",
+      "objective": "公開前検証を実行し結果を記録する",
+      "criteria": [
+        "全検証コマンドの実行ログと合否判定が保存されている"
+      ],
+      "status": "completed",
+      "result": "failed",
+      "artifacts": [
+        "logs/release-checks-01.log"
+      ],
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-4",
+          "started": "2026-01-01T02:20:00Z",
+          "ended": "2026-01-01T02:25:00Z",
+          "result": "succeeded"
+        }
+      ]
+    }
   ]
 }
 ```
@@ -199,27 +251,45 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "ticket": {
-    "id": "tkt-c9d0e1f2-4",
-    "task": "tsk-e5f6a7b8-1",
-    "worker_id": "wkr-7c8d9e0f-1",
-    "session_id": "ssn-2b3c4d5e-1",
-    "status": "canceled",
-    "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
-    "artifacts": [
-      "logs/deploy-staging-01.log"
-    ]
-  },
+  "tickets": [
+    {
+      "id": "tkt-c9d0e1f2-4",
+      "task": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "status": "canceled",
+      "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
+      "artifacts": [
+        "logs/deploy-staging-01.log"
+      ]
+    }
+  ],
   "jobs": [
     {
       "id": "job-1a2b3c4d-5",
       "status": "completed",
-      "result": "passed"
+      "result": "passed",
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-5",
+          "started": "2026-01-01T00:50:00Z",
+          "ended": "2026-01-01T00:59:00Z",
+          "result": "succeeded"
+        }
+      ]
     },
     {
       "id": "job-1a2b3c4d-6",
       "status": "canceled",
-      "result": "error"
+      "result": "error",
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-2",
+          "started": "2026-01-01T01:00:00Z",
+          "ended": "2026-01-01T02:00:00Z",
+          "result": "error"
+        }
+      ]
     }
   ]
 }
@@ -237,31 +307,35 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-c9d0e1f2-3",
-  "task": "tsk-e5f6a7b8-1",
-  "worker_id": "wkr-7c8d9e0f-1",
-  "session_id": "ssn-2b3c4d5e-2",
-  "objective": "レビュー指摘を反映して案内文を修正する",
-  "jobs": [
-    "job-1a2b3c4d-7",
-    "job-1a2b3c4d-8"
-  ],
-  "depends": [
-    "tkt-c9d0e1f2-2"
-  ],
-  "refs": [
+  "tickets": [
     {
-      "ticket_id": "tkt-c9d0e1f2-1",
-      "kind": "fixes",
-      "note": "初稿ドラフト成果物を引き継ぐ"
-    },
-    {
-      "ticket_id": "tkt-c9d0e1f2-2",
-      "kind": "derived_from",
-      "note": "changes_requested の指摘メモを参照"
+      "id": "tkt-c9d0e1f2-3",
+      "task": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
+      "objective": "レビュー指摘を反映して案内文を修正する",
+      "jobs": [
+        "job-1a2b3c4d-7",
+        "job-1a2b3c4d-8"
+      ],
+      "depends": [
+        "tkt-c9d0e1f2-2"
+      ],
+      "refs": [
+        {
+          "ticket_id": "tkt-c9d0e1f2-1",
+          "kind": "fixes",
+          "note": "初稿ドラフト成果物を引き継ぐ"
+        },
+        {
+          "ticket_id": "tkt-c9d0e1f2-2",
+          "kind": "derived_from",
+          "note": "changes_requested の指摘メモを参照"
+        }
+      ],
+      "status": "todo"
     }
-  ],
-  "status": "todo"
+  ]
 }
 ```
 
@@ -270,59 +344,80 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "tkt-c9d0e1f2-5",
-  "status": "waiting",
-  "resume": "会場管理者から最終使用許可の回答を受け取る"
+  "tickets": [
+    {
+      "id": "tkt-c9d0e1f2-5",
+      "status": "waiting",
+      "resume": "会場管理者から最終使用許可の回答を受け取る"
+    }
+  ]
 }
 ```
 
 ## 9. Run（実行試行と待機制御）
 
-- [定義] `Run` は Job の1回の実行試行を記録する正本。実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
+- [定義] `Run` は Job の1回の実行試行を記録する正本。各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（`jobs[].runs[]`：未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）として保持し、実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
+- [禁止] `Run` を `Job` の外（`Ticket` 直下やルート直下）に配置する、または `Run` 内に外出し用の冗長な逆参照（`ticket_id`・`job`・`worker_id`・`session_id` および `Run.wait.job_id`）を持たせる。
 - [必須] `id: string`：実行試行を識別する自動採番 ID（`run-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
-- [必須] `ticket_id: string`：所属する Ticket の ID（`tkt-*`）。
-- [必須] `job: string`：実行した Job の ID（`job-*`）。
-- [必須] `worker_id: string`：当該 Ticket の `Worker.id`（`wkr-*`）。
-- [必須] `session_id: string`：実行を担当する単一の `Session.id`（`ssn-*`）。
 - [必須] `started: string`：実作業開始時刻（ISO 8601）。
 - [任意] `ended: string`：終了時刻（ISO 8601。終了確定時に時刻を確認できる場合は記録する）。
 - [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`canceled`・`error` 等）。実行中は省略し、**Run の終了確定時は必須**とする。
-- [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`job_id`・`target`・`condition`・`since`・`resume_point`・`timeout`・待機解消/解除時の `resolved`）。Job 側ではなく Run 側で保持する。
-- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している Run の例（実行中のため `result` と `ended` はまだ無い）。
+- [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`target`・`condition`・`since`・`resume_point`・`timeout`・待機解消/解除時の `resolved`）。Job 直下ではなく各 Job 内の `Run.wait` で保持する。
+- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している `jobs[].runs` の例（実行中のため `result` と `ended` はまだ無い）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "run-5e6f7a8b-2",
-  "ticket_id": "tkt-c9d0e1f2-4",
-  "job": "job-1a2b3c4d-6",
-  "worker_id": "wkr-7c8d9e0f-1",
-  "session_id": "ssn-2b3c4d5e-1",
-  "started": "2026-01-01T01:00:00Z",
-  "wait": {
-    "job_id": "job-1a2b3c4d-6",
-    "target": "external-approval:staging-slot-7",
-    "condition": "メンテナンス枠の開始承認を受け取る",
-    "since": "2026-01-01T01:04:30Z",
-    "resume_point": "step-3-apply-migration",
-    "timeout": "2026-01-01T02:00:00Z"
-  }
+  "jobs": [
+    {
+      "id": "job-1a2b3c4d-6",
+      "objective": "ステージング環境へマイグレーションを適用する",
+      "criteria": [
+        "承認枠内でマイグレーションが正常適用されている"
+      ],
+      "status": "waiting",
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-2",
+          "started": "2026-01-01T01:00:00Z",
+          "wait": {
+            "target": "external-approval:staging-slot-7",
+            "condition": "メンテナンス枠の開始承認を受け取る",
+            "since": "2026-01-01T01:04:30Z",
+            "resume_point": "step-3-apply-migration",
+            "timeout": "2026-01-01T02:00:00Z"
+          }
+        }
+      ]
+    }
+  ]
 }
 ```
 
-- [例] 次は正常終了した Run（終了確定時に `result` と確認できた `ended` を記録し、この時点で `run-5e6f7a8b-1` は閉じる）。
+- [例] 次は正常終了した `Run` を持つ `Job`（終了確定時に `result` と確認できた `ended` を記録し、この時点で `run-5e6f7a8b-1` は閉じる）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "id": "run-5e6f7a8b-1",
-  "ticket_id": "tkt-c9d0e1f2-1",
-  "job": "job-1a2b3c4d-1",
-  "worker_id": "wkr-7c8d9e0f-1",
-  "session_id": "ssn-2b3c4d5e-1",
-  "started": "2026-01-01T01:00:00Z",
-  "ended": "2026-01-01T01:20:00Z",
-  "result": "succeeded"
+  "jobs": [
+    {
+      "id": "job-1a2b3c4d-1",
+      "objective": "必要事項を揃えた案内文を作る",
+      "criteria": [
+        "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
+      ],
+      "status": "completed",
+      "result": "passed",
+      "runs": [
+        {
+          "id": "run-5e6f7a8b-1",
+          "started": "2026-01-01T01:00:00Z",
+          "ended": "2026-01-01T01:20:00Z",
+          "result": "succeeded"
+        }
+      ]
+    }
+  ]
 }
 ```
 

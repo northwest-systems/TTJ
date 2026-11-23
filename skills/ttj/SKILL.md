@@ -12,6 +12,7 @@ metadata:
   - [禁止] 特定の Agent・Bot・オーケストレーターへの依存を TTJ の規則へ持ち込む。
   - [必須] ラベルはその行だけに適用し、配下の項目へ継承しない。
   - [必須] JSON を読み書きする場合はルートの `protocol` で規格名と版を確認し、出力には `"TTJ/1.1.0"` を付ける。
+  - [必須] 単数／複数によるキー名変化を廃止し、空配列 `[]`・1件の配列 `[ {...} ]`・複数件の配列 `[ {...}, {...} ]` すべてを許容する複数形の配列キー（`projects`・`workers`・`sessions`・`tasks`・`tickets`・`jobs`・`runs` 等）に統一する（抜粋であっても単数キー名は使用しない）。
   - [禁止] 同じ文書の子レコードへ版情報を転記する。
 
 ## 計画
@@ -54,10 +55,11 @@ metadata:
   - [必須] 実行する Session が対象 Ticket の `worker_id`（`wkr-*`）および `session_id`（`ssn-*`）と一致し、同一 Ticket で他に稼働中の有効な `Run` が存在しないことを確認する。
   - [禁止] 同じ Worker であることを理由に、対象 Ticket の `session_id` と異なる別 Session による無断実行を許可する。
   - [必須] 同一 Ticket・同一 Session 内の通常再試行および（Job 単独中止後の）後続 Job 開始では、前の Run を閉鎖した上で停止確認または安全条件を確認してから新しい `Run` を開始する（残存副作用の疑いがあれば停止確認・復旧まで開始禁止）。
-- [必須] **Run 記録**：Job の1回の実行試行の正本として `Run`（`id`: `run-*`, `ticket_id`, `job`, `worker_id`, `session_id`）を記録する。
+- [必須] **Run 記録**：各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（`jobs[].runs[]`：未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）に、Job の1回の実行試行の正本として `Run`（`id`: `run-*`, `started`, 終了時の `ended` / `result`, `waiting` 時の `wait`）を記録する。
+  - [禁止] `Run` を `Job` の外（`Ticket` 直下やルート直下）に配置する、または `Run` 内に冗長な親参照（`ticket_id`・`job`・`worker_id`・`session_id`・`wait.job_id`）を重複記載する。
   - [禁止] 同じ Ticket の別 Job を同時実行する、複数の Run を同時に稼働させる、または同じ試行の再送を二重登録する。
   - [必須] Run では実作業開始時刻 `started` を必須記録する。実行中は `result`（および `ended`）を持たず、終了確定時に `result`（および確認できれば `ended`）を必須記録し、終了時点で当該 `Run.id` を閉じる。
-  - [必須] 待機・実行制御情報（`wait`）は Job ではなく `Run` 側で保持する。
+  - [必須] 待機・実行制御情報（`wait`：`target`・`condition`・`since`・`resume_point`・`timeout`・`resolved`）は Job 直下ではなく各 Job 内の `Run.wait` で保持する。
   - [禁止] 依頼送信や `Run` の終了だけで Job を完了する。
   - [禁止] 閉じた旧 `Run.id` や対象外 Session からの業務状態更新を適用する。
 - [必須] **管理・評価・証拠取り込み操作**：単一 Owner 原則のもと、未着手 Ticket への依存評価（前提完了→`todo`、前提中止→`blocked`）、保留・解除・中止・Run を持たない Task の計画内 `waiting` 入退/完了・障害解消復帰、および Run 終了後の `waiting` / `doing` Job への検証済み外部証拠取り込みは、それぞれの認可・終端保護・監査記録を満たして実行する。
@@ -83,7 +85,7 @@ metadata:
   - [必須] 保留中（`paused`）は実行再開を禁止し、未解消の待機・課題を保持して明示解除時に再評価する（保留前状態の無条件復元禁止）。
   - [必須] 再開・障害解除・再試行に必要な条件や証拠は必ず永続正本（`depends`・`Run.wait`・`Run.result`・`Ticket.cancel_reason`・`resume`・管理履歴）に保存し、揮発性 Handoff のみに委ねない。
   - [必須] 中断・引き継ぎ前および重要な失敗時は正本と Handoff を更新し、再開時は正本・実状態と照合して、条件が変わっていない失敗を根拠なく繰り返さない。
-- [必須] **同一 Ticket・同一 Session 内の Job 再試行**：一時的なエラー等で `Run` が `result: "failed"` となったが同一 Session で回復可能な場合は、Ticket・Job の `status: "doing"` を維持したまま失敗した旧 Run を終了（`result: "failed"` 等を記録して閉鎖）し、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket・同一 Session で新しい `Run`（`run-*`）を追加・実行する。
+- [必須] **同一 Ticket・同一 Session 内の Job 再試行**：一時的なエラー等で `Run` が `result: "failed"` となったが同一 Session で回復可能な場合は、Ticket・Job の `status: "doing"` を維持したまま失敗した旧 Run を終了（`result: "failed"` 等を記録して閉鎖）し、前の実行が停止（または残存副作用がない安全条件）していることを確認した上で、同一 Ticket・同一 Session で当該 Job の `runs` 配列に新しい `Run`（`run-*`）を追加・実行する。
 - [必須] **Session 再開不可時の新規 Ticket 起票**：担当 Session が再開不可となった場合は、前の実行が停止（または残存副作用がない安全条件）していることを確認してから新規 Ticket へ引き継ぐ。
   - [禁止] 1つの Ticket の担当セッション（`worker_id`・`session_id`）を途中で書き換えて別 Session や別 Worker に付け替える。
   - [禁止] 前の実行が稼働中または停止未確認の状態で旧 Ticket を引き継ぐ。
@@ -102,5 +104,5 @@ metadata:
   - [必須] 状態は `active`・`supersed` の2値（v1.0.0 の綴りを維持）とし、新規記録は未指定でも `active` にする。
   - [必須] 予定も現在の知識として `active` に記録し、通常は `active` だけを参照し、振り返り・再発障害確認では `supersed` も読む。
   - [必須] 使わなくなった知識は理由を残して `supersed` にし、訂正は `supersedes` 付きの新規記録とする。
-- [必須] **点検**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）、単一 Owner 原則、Ticket の `worker_id`・`session_id` 固定、Run 正本化、`status`/`result` 分離、未解決待機辺を含む依存循環禁止、再開不可・差し戻し時の新規 Ticket 起票、揮発性 Handoff の Task 完了時消去と `Project.knowledge` への昇格、禁止事項、Worker 非依存性を確認する。
+- [必須] **点検**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）、単数／複数によるキー名変化を廃止した配列キーへの統一（空 `[]`・1件・複数件すべて許容）、単一 Owner 原則、Ticket の `worker_id`・`session_id` 固定、`Job` 内側（`jobs[].runs[]`）への `Run` 配置と親 ID 重複廃止、`status`/`result` 分離、未解決待機辺を含む依存循環禁止、再開不可・差し戻し時の新規 Ticket 起票、揮発性 Handoff の Task 完了時消去と `Project.knowledge` への昇格、禁止事項、Worker 非依存性を確認する。
   - [必須] 計画・実行済みの事実・管理情報・未確認事項を分けて報告する。
