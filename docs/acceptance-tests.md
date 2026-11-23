@@ -6,7 +6,7 @@
 
 - すべての検証対象 JSON 記録はルートに `protocol: "TTJ/1.1.0"` を持つ。
 - テスト環境は特定の Agent・Bot・オーケストレーターに依存せず、TTJ Core のデータモデル・公開契約・状態遷移・排他規則のみで検証できること。
-- Ticket 正式作成時の `Execution Claim` 初期状態は `state: "unassigned"`, `session_id: null`, `active_run_id: null`, `generation: 1`, `run_seq: 0` とし、Claim 状態切替 1 回ごとに `generation` が厳密に `+1`（初回取得で `generation: 2`）、Run の開始結合・安全閉鎖・終了確定ごとに `run_seq` が `+1` される。
+- Ticket 正式作成時の `Execution Claim` 初期状態は `state: "unassigned"`, `session_id: null`, `active_run_id: null`, `generation: 1`, `run_seq: 0` とし、Claim 状態切替 1 回ごとに `generation` が厳密に `+1`（初回取得で `generation: 2`、確定済み世代は非巻戻し）、Run の開始結合・即時無効化・安全閉鎖・終了確定ごとに `run_seq` が `+1` される。
 - 特に **競合**（UC-20, UC-21, UC-26, UC-S01, UC-S02）、**停止・再起動・巻き取り・外部フェンシング**（UC-17, UC-18, UC-19, UC-25, UC-S03）、**非実行経路・保留解除・親 Task 独立性・未起動閉鎖 Run**（UC-S04, UC-S05, UC-S06）、**循環依存と未解決/解消済み待機**（UC-11）、**Worker 非依存性**（UC-03, UC-27）を境界条件まで厳密に観測・検証すること。
 
 ---
@@ -96,20 +96,23 @@
   - 追加依頼が独立 `Request` や特殊状態機械なしで通常の Ticket / Job として起票・実行・証拠付き完了でき、`"tk-2"` 側から `"tk-3"` の結果・成果物を参照できる。
 
 ### UC-11: 循環する完了依存
-- **前提**：非終端 Ticket `"tk-a"`, `"tk-b"`, `"tk-x"`, `"tk-y"`, `"tk-z"`, `"tk-p"`, `"tk-q"`, `"tk-c1"`, `"tk-c2"` が存在する。
+- **前提**：非終端 Ticket `"tk-a"`, `"tk-b"`, `"tk-x"`, `"tk-y"`, `"tk-z"`, `"tk-pa"`, `"tk-pb"`, `"tk-ba"`, `"tk-bb"`, `"tk-p"`, `"tk-q"`, `"tk-c1"`, `"tk-c2"` が存在する。
 - **操作**：
   1. **自己依存・静的循環**：`"tk-a"` に `depends: ["tk-a"]` を登録試行（拒否）。次に `"tk-a"` に `depends: ["tk-b"]` を登録（成功）した上で `"tk-b"` に `depends: ["tk-a"]` を登録試行。
   2. **未解決 `Run.wait` 混在循環（停止・移譲中含む）**：
      - (2a) `"tk-x"` に `depends: ["tk-y"]` を登録（成功）し、`"tk-y"` の現在 Job の未解決 `Run.wait.target` に `"tk-z"` の完了待ちを登録（成功、停止・移譲中で未解決のまま引き継がれている状態を含む）した上で、`"tk-z"` に `depends: ["tk-x"]` を登録試行。
      - (2b) `"tk-x"` が `depends: ["tk-y"]` を持つ状態で、`"tk-y"` の現在 Job の未解決 `Run.wait.target` に直接 `"tk-x"` の完了待ちを登録試行。
-  3. **解消済み履歴待機を辺から外した逆向き登録（対照・許可）**：`"tk-p"` の `Run` `"r-p1"` が `"tk-q"` の完了待ちを `Run.wait` として記録した後、待機が解消・解除（`Run.wait.resolved` 記録、`"tk-p"` はもはや `"tk-q"` を待っていない）された状態で、`"tk-q"` から `"tk-p"` を待つ完了依存（`depends: ["tk-p"]` または `Run.wait`）を登録する。
-  4. **逆向き競合登録の確定境界**：互いに依存のない `"tk-c1"` と `"tk-c2"` に対し、`"tk-c1" → "tk-c2"`（`depends` または `Run.wait`）と `"tk-c2" → "tk-c1"`（`depends` または `Run.wait`）をバリア同期で並行登録する。
-  5. **情報共有参照の対照**：`"tk-b"` の `refs` に `{"ticket_id": "tk-a", "kind": "related"}` を登録する。
+  3. **保留（`paused`）・一時障害（`blocked`）で保持中の未解決待機辺**：
+     - (3a) `"tk-pa"` と現在 Job が閉じた Run の記録で `"tk-pb"` への未解決待機を保持したまま、通常の明示保留（`status: "paused"`）になっている間に、`"tk-pb"` から `"tk-pa"` への完了依存（`depends: ["tk-pa"]` または `Run.wait`）を登録試行する。
+     - (3b) 同様に `"tk-ba"` と現在 Job が一時障害（`status: "blocked"`）で `"tk-bb"` への未解決待機を保持している間に、`"tk-bb"` から `"tk-ba"` への完了依存を登録試行する。
+  4. **解消済み履歴待機を辺から外した逆向き登録（対照・許可）**：`"tk-p"` の `Run` `"r-p1"` が `"tk-q"` の完了待ちを `Run.wait` として記録した後、待機が解消・解除（`Run.wait.resolved` 記録、`"tk-p"` はもはや `"tk-q"` を待っていない）された状態で、`"tk-q"` から `"tk-p"` を待つ完了依存（`depends: ["tk-p"]` または `Run.wait`）を登録する。
+  5. **逆向き競合登録の確定境界**：互いに依存のない `"tk-c1"` と `"tk-c2"` に対し、`"tk-c1" → "tk-c2"`（`depends` または `Run.wait`）と `"tk-c2" → "tk-c1"`（`depends` または `Run.wait`）をバリア同期で並行登録する。
+  6. **情報共有参照の対照**：`"tk-b"` の `refs` に `{"ticket_id": "tk-a", "kind": "related"}` を登録する。
 - **期待結果**：
-  - 1・(2a)・(2b) の循環完了依存はいずれも登録時点で**拒否**される。
-  - 3 は解消済み `Run.wait` が履歴に残ったまま完了依存グラフの辺から外れるため、逆向き登録が**許可**される。
-  - 4 は原子的な循環検証・確定境界により**高々一方のみ成功**し、もう一方は循環依存として**拒否**される（双方同時成功しない、拒否側は正本無変更）。
-  - 5 の情報共有参照 `refs` は実行依存ではないため**許可**される。
+  - 1・(2a)・(2b)・(3a)・(3b) の循環完了依存はいずれも登録時点で**拒否**される（保留・一時障害中でも未解決待機辺は残る）。
+  - 4 は解消済み `Run.wait` が履歴に残ったまま完了依存グラフの辺から外れるため、逆向き登録が**許可**される。
+  - 5 は原子的な循環検証・確定境界により**高々一方のみ成功**し、もう一方は循環依存として**拒否**される（双方同時成功しない、拒否側は正本無変更）。
+  - 6 の情報共有参照 `refs` は実行依存ではないため**許可**される。
 
 ### UC-12: 複合スクリプト内の待機
 - **前提**：複合スクリプトを管理する Ticket `"tk-script"`（`jobs: ["j-prep", "j-exec", "j-verify"]`）において、`"j-prep"` は `completed`、`"j-exec"` が `doing` であり、Session `"s-1"` が現行 `Run` `"r-1"`（`generation: 2`, `active_run_id == "r-1"`）を実行中である。
@@ -157,17 +160,17 @@
 
 ### UC-18: 停止確認後の巻き取り
 - **前提**：2 つの独立フィクスチャを用意する。
-  - **Fixture A（同一 Worker 移譲）**：`Worker` `"w-1"` 所有の Ticket `"tk-a"` に対し、Session `"s-1a"` が Claim（`generation: 2`, `run_seq: 2`, `state: "active"`, `active_run_id: null`）を保持し、全過去 Run（`"r-1a"`）が独立監視により `activity: "stopped"`（終了確定済み）になっている。同一 Worker `"w-1"` の別 Session `"s-2a"` が存在する。
-  - **Fixture B（別 Worker への新 Ticket 移管）**：`Worker` `"w-1"` 所有の未終端 Ticket `"tk-b"` に対し、Session `"s-1b"` の全過去 Run（`"r-1b"`）が `activity: "stopped"`（終了確定済み、`generation: 2`, `run_seq: 2`, `active_run_id: null`）になっている。別 Worker `"w-2"` の Session `"s-2b"` が存在する。
+  - **Fixture A（同一 Worker 移譲）**：`Worker` `"w-1"` 所有の Ticket `"tk-a"` に対し、Session `"s-1a"` が Claim（`generation: 2`, `run_seq: 2`, `state: "active"`, `active_run_id: null`）を保持し、全過去 Run（`"r-1a"`）が独立監視により `activity: "stopped"`（終了確定済み）になっている。同一 Worker `"w-1"` の生存する別 Session `"s-2a"` が存在する。
+  - **Fixture B（別 Worker への新 Ticket 移管）**：`Worker` `"w-1"` 所有の未終端 Ticket `"tk-b"` に対し、Session `"s-1b"` の全過去 Run（`"r-1b"`）が `activity: "stopped"`（終了確定済み、`generation: 2`, `run_seq: 2`, `active_run_id: null`）になっている。別 Worker `"w-2"` の生存 Session `"s-2b"` が存在する。
 - **操作**：
   1. Fixture A・B の双方で、副作用残存の疑いがあり安全条件未成立の状態で巻き取りを要求する。
   2. 安全条件成立を確認した上で：
      - Fixture A：`"s-2a"` が `(expected_generation: 2, expected_run_seq: 2)` で Claim 移譲を実行し、続いて旧 `"s-1a"` が旧 `generation: 2` で更新を試みる（さらに待機・障害のない `doing` Job であれば移譲後に `"s-2a"` が新 Run を結合開始する）。
-     - Fixture B：`"s-2b"` が `(expected_generation: 2, expected_run_seq: 2, operation_id: "op-b-1")` で新 Ticket への巻き取りを実行し、続いて旧 `"s-1b"` が旧 `generation: 2` で `"tk-b"` の更新を試みる。
+     - Fixture B：`"s-2b"` が `(expected_generation: 2, expected_run_seq: 2, operation_id: "op-b-1")` で単一の原子的確定による新 Ticket 巻き取りを実行し、続いて旧 `"s-1b"` が旧 `generation: 2` で `"tk-b"` の更新を試みる。
 - **期待結果**：
   - 1（失敗時）：Fixture A・B ともに巻き取りは**保留・拒否**され、双方の Claim（`generation: 2`, `run_seq: 2`, `session_id`, `state`）および Ticket は一切変化しない。
   - 2（Fixture A 成功時）：`"tk-a"` の Claim が `generation: 3`, `session_id: "s-2a"`, `active_run_id: null`, `state: "active"` へ更新され、待機・障害のない `doing` Job なら新 Run を開始でき、旧 `"s-1a"`（`generation: 2`）の更新は**拒否**される。
-  - 2（Fixture B 成功時）：`"tk-b"` は `owner_id: "w-1"` のまま `status: "canceled"`（`cancel_reason` 保存）・Claim `revoked`（`generation: 3`, 再取得永久禁止、二重失効なし）となり、`owner_id: "w-2"` の新 Ticket `"tk-b2"`（`refs` に `"tk-b"`）と新 Claim（`unassigned(gen=1) → active(gen=2)`）が作成され、旧 `"s-1b"`（`generation: 2`）の更新は**拒否**される。
+  - 2（Fixture B 成功時）：`"tk-b"` は `owner_id: "w-1"` のまま `status: "canceled"`（`cancel_reason` 保存）・Claim `revoked`（`generation: 3`, 再取得永久禁止、二重失効なし）となり、`owner_id: "w-2"` の新 Ticket `"tk-b2"`（`refs` に `"tk-b"`）と新 Claim（`unassigned(gen=1) → active(gen=2)`）が一体で確定し、旧 `"s-1b"`（`generation: 2`）の更新は**拒否**される。
 
 ### UC-19: 状態不明の巻き取り
 - **前提**：Ticket `"tk-1"` の現行 `Run` `"r-1"` について、Heartbeat が途絶し観測有効期間を超過したため実効 `activity` が `"unknown"` になっている（停止確認は未取得）。また Claim 失効済みだが `"r-1"` が `activity: "unknown"` のフィクスチャも用意する。
@@ -179,10 +182,10 @@
   - 2 の巻き取り・取得要求はいずれも**拒否**される。
 
 ### UC-20: 同時巻き取り要求
-- **前提**：Ticket `"tk-1"` の全過去 Run が `activity: "stopped"`・`active_run_id: null` かつ安全条件成立済みで、`Execution Claim` は `generation: 2, run_seq: 2` である。適格な 3 つの Session（`"s-2"`, `"s-3"`, `"s-4"`）を用意する（同一 Worker 移譲および別 Worker 新 Ticket 移管の双方を検証）。
+- **前提**：Ticket `"tk-1"` の全過去 Run が `activity: "stopped"`・`active_run_id: null` かつ安全条件成立済みで、`Execution Claim` は `generation: 2, run_seq: 2` である。適格な 3 つの生存 Session（`"s-2"`, `"s-3"`, `"s-4"`）を用意する（同一 Worker 移譲および別 Worker 新 Ticket 移管の双方を検証）。
 - **操作**：`"s-2"`, `"s-3"`, `"s-4"` がすべて同一の `(expected_generation: 2, expected_run_seq: 2)` を指定し、バリア同期で同時に `"tk-1"` の巻き取り要求を発行する。
 - **期待結果**：
-  - 原子的 CAS により**厳密に 1 Session のみ**が成功する。
+  - 単一の原子的確定により**厳密に 1 Session のみ**が成功する。
   - 同一 Worker 移譲では旧 Ticket Claim のみが `generation: 3` へ更新され、別 Worker 新 Ticket 移管では**旧 Ticket `"tk-1"` の Claim が `state: "revoked", generation: 3`** となり、**後続 Ticket は厳密に 1 つだけ作成されその後続 Ticket の Claim が初回取得の `state: "active", generation: 2`**（`unassigned(gen=1) → active(gen=2)`）となる。
   - 敗者 2 Session は競合エラーで**拒否**され、敗者による Claim・Ticket・Job・監査状態の部分変更は一切残らない。
 
@@ -196,16 +199,17 @@
   - さらに外部ゲートウェイ（効果確定側）でも旧 `generation: 2` / 失効済み Claim が拒否され、`ext_value` が `"v0"` のまま実際に変更されないことを観測できる。
 
 ### UC-22: Handoff 消失
-- **前提**：Task `"t-1"` 配下に、進行中（永続正本 `V1`: `source_revision = 10`）・`blocked`（正本 `resume` に解除条件を記録）・`waiting`（`Run.wait` に待機条件を記録）・`canceled`（`cancel_reason` を記録）の各 Ticket・Job・`artifacts`・`Run`・`Execution Claim`（`generation: 2`）・管理履歴が存在し、Task の揮発性 `Handoff` も存在している。旧処理 `P_stale` が `V1`（`source_revision = 10`）のスナップショットを保持したまま一時遅延している。
+- **前提**：Task `"t-1"` 配下に、現行 Session `"s-1"` が `active` Claim（`generation: 2`）および現行 `Run` `"r-1"`（`active_run_id == "r-1"`）を保持する進行中 Ticket `"tk-1"`（永続正本 `V1`: `source_revision = 10`）、さらに `blocked`（正本 `resume` に解除条件を記録）・`waiting`（`Run.wait` に待機条件を記録）・`canceled`（`cancel_reason` を記録）の各 Ticket・Job・`artifacts`・管理履歴が存在し、Task の揮発性 `Handoff` も存在している。
 - **操作**：
-  1. 同一 Ticket・同一 Claim 世代（`generation: 2`）のまま正本状態が `V1`（`source_revision = 10`）から `V2`（`source_revision = 12`）へ進んだ後、Task `"t-1"` の `Handoff` を完全破棄・削除する。
-  2. 実行プロセスおよび Session を**再起動**し、認可された管理再生成処理が永続正本最新版（`V2`, `source_revision = 12`）から `Handoff` を再生成する（`revision = 1, source_revision = 12`）。
-  3. 遅延していた旧処理 `P_stale` が、消失前の旧スナップショット `V1`（`source_revision = 10`, 同一 `generation: 2`）に対し、再生成後より大きい `revision = 99` を付けて `Handoff` 更新を試みる。
-  4. 再起動後の Session が正本レコードのみを読み取り、`blocked` の解除条件・`waiting` の再開位置・`canceled` の中止理由を照合する。
+  1. **異正本版の遅延更新（Session/Claim/現行 Run 照合通過後の鮮度拒否）**：同一 Ticket・同一 Claim（`session_id: "s-1"`, `generation: 2`）・現行 `Run` `"r-1"` のまま、正本状態が `V1`（`source_revision = 10`）から `V2`（`source_revision = 12`）へ進んだ後、Task `"t-1"` の `Handoff` を完全破棄・削除し、認可された管理再生成処理が永続正本最新版（`V2`, `source_revision = 12`）から新スロットを再生成する（`revision = 1, source_revision = 12`）。そこへ、認証済み `"s-1"`・`generation: 2`・現行 `"r-1"` の照合を通る形で、`V1`（`source_revision = 10`）に基づく遅延更新をより大きい `revision = 99` 付きで送信する。
+  2. **同一正本版での消失・再生成をまたぐ旧更新拒否**：永続正本版が `source_revision = 12` のまま変わらない状態で、消失前の旧スロット向けに準備された補足メモ更新（同一 `"s-1"`・`generation: 2`・現行 `"r-1"`・同じ `source_revision = 12`・大きい `revision = 99`）が遅延する間に、キャッシュが消失し管理再生成により `source_revision = 12` の新スロット（`revision = 1`）が生成される。その後に遅延していた旧スロット向け更新を到着させる。
+  3. **空き枠への閉じた旧 Run 名義 Handoff 更新拒否**：`"r-1"` を終了閉鎖して `claim.active_run_id = null` にした直後（`"s-1"` は依然 `active` Claim `generation: 2` を保持）、Run 起因更新入口へ閉じた `"r-1"` 名義の Handoff 更新を送信する。
+  4. **再起動後の正本照合**：実行プロセスおよび Session を再起動し、正本レコードのみから `blocked` の解除条件・`waiting` の再開位置・`canceled` の中止理由を照合する。
 - **期待結果**：
-  - 1〜2 で Task・Ticket・Job・`cancel_reason`・`artifacts`・正本 `resume`・`Run`（`wait` 含む）・`Execution Claim`・管理履歴は一切失われず、管理再生成はいかなる Session にも実行権を付与せず `V2` の表示を復元する。
-  - 3 で `P_stale` がより大きい `revision = 99` と一致する `generation: 2` を提示しても、永続正本版 `source_revision` の比較（`10 < 12`）により遅延適用が**確実に拒否**され、現行 `Handoff`（`V2`）は上書きされない。
-  - 4 で再起動後も揮発性 Handoff なしで再開判断・障害解除照合を完了できる。
+  - 1 で管理再生成はいかなる Session にも実行権を付与せず `V2` を復元し、Session/Claim/現行 Run 照合を通った `V1` 遅延更新も `source_revision` 鮮度ガード（`10 < 12`）で**拒否**される。
+  - 2 で同一の `source_revision = 12`・大きい `revision = 99` を提示しても、消失前の旧スロット向けに準備された遅延更新は新スロットを上書きせず**拒否**される。
+  - 3 で `active_run_id == null` の空き枠へ到着した閉じた `"r-1"` 名義の Run 起因更新は**拒否**される（Run 非紐付けの Session 更新入口と明確区別）。
+  - 4 で Task・Ticket・Job・`cancel_reason`・`artifacts`・正本 `resume`・`Run`・`Execution Claim`・管理履歴は一切失われず、再起動後も正本のみから再開判断を完了できる。
 
 ### UC-23: 次 Ticket 未作成で終了
 - **前提**：継続中の Task `"t-1"` 配下に Ticket `"tk-1"`（`jobs: ["j-1", "j-2"]`, `owner_id: "w-1"`）があり、`"j-1"` は `completed`、最後の Job `"j-2"` が `doing`（現行 `Run` `"r-2"`）である。後続 Ticket は一切作成されていない。
@@ -225,7 +229,7 @@
   - 同一 Task に属することや `Handoff` が単一スロットであることを理由に直列化・拒否されず、`"tk-a"` と `"tk-b"` が並列に進行・完了できる。
 
 ### UC-25: `waiting` 中に Session 停止
-- **前提**：Ticket `"tk-1"`（`owner_id: "w-1"`）の現在 Job `"j-1"` が `status: "waiting"` であり、旧 Session `"s-1"` が実行していた `Run` `"r-1"`（`generation: 2`）が待機制御情報 `wait`（`target`, `condition`, `since`, `resume_point: "step-4"`）を保持している。同一 Worker `"w-1"` の別 Session `"s-2"`（巻き取り要求者）が存在する。
+- **前提**：Ticket `"tk-1"`（`owner_id: "w-1"`）の現在 Job `"j-1"` が `status: "waiting"` であり、旧 Session `"s-1"` が実行していた `Run` `"r-1"`（`generation: 2`）が待機制御情報 `wait`（`target`, `condition`, `since`, `resume_point: "step-4"`）を保持している。同一 Worker `"w-1"` の生存する別 Session `"s-2"`（巻き取り要求者）が存在する。
 - **操作**：
   1. `"r-1"` が `activity: "alive"` または `"unknown"`（または終了未確定で `active_run_id == "r-1"`）の状態で、`"s-2"` が巻き取りを要求する。
   2. 独立監視により `"r-1".activity` が `"stopped"`（停止確認済み）となり、かつ `"r-1"` の終了確定（`ended`・`result: "interrupted"`・`claim.active_run_id: null`・`run_seq: 2`）と安全条件成立が揃った状態で、`"s-2"` が巻き取り（Claim 移譲：`expected_generation: 2, expected_run_seq: 2 → generation: 3`）を実行し、`"r-1".wait` を引き継いで状態を再評価する。
@@ -253,58 +257,74 @@
 
 ## 3. 追加シナリオ（UC-S01〜UC-S06）
 
-### UC-S01: 同じ世代の旧 Run 拒否・並行再試行排他・同一 Claim 安全閉鎖
-- **前提**：2 つの独立フィクスチャを用意する。
-  - **Fixture A（並行再試行排他と同世代旧 Run 拒否）**：Ticket `"tk-1"`（`owner_id: "w-1"`, `jobs: ["j-1"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 2`, `active_run_id: null`）を保持し、最初の試行 `Run` `"r-1"` が停止確認済み（`activity: "stopped"`, `ended`・`result: "interrupted"`）である。
-  - **Fixture B（`unknown` 旧試行の安全閉鎖による同 Claim 再試行および Job 単独中止後続開始）**：Ticket `"tk-2"`（`owner_id: "w-1"`, `jobs: ["j-2a", "j-2b"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 1`, `active_run_id: "r-unk-1"`）を保持し、`"r-unk-1"` は `activity: "unknown"` だが外部フェンシングで確実に無効化でき残存副作用の疑いがない。
+### UC-S01: 同世代旧 Run 拒否・並行再試行の古い前提拒否・同一 Claim 安全閉鎖
+- **前提**：3 つの独立フィクスチャを用意する。
+  - **Fixture A（稼働中並行再試行排他と同世代旧 Run 拒否）**：Ticket `"tk-1"`（`owner_id: "w-1"`, `jobs: ["j-1"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 2`, `active_run_id: null`）を保持し、最初の試行 `Run` `"r-1"` が停止確認済み（`activity: "stopped"`, `ended`・`result: "interrupted"`）である。
+  - **Fixture B（空き枠復帰後の古い前提並行再試行拒否）**：Fixture A と同じ初期状態（`"r-1"` 停止済み、`run_seq: 2`、`active_run_id: null`）。
+  - **Fixture C（`unknown` 旧試行の安全閉鎖による同 Claim 再試行および Job 単独中止後続開始）**：Ticket `"tk-2"`（`owner_id: "w-1"`, `jobs: ["j-2a", "j-2b"]`）で Session `"s-1"` が `active` Claim（`generation: 2`, `run_seq: 1`, `active_run_id: "r-unk-1"`）を保持し、`"r-unk-1"` は `activity: "unknown"` だが外部フェンシングで確実に無効化でき残存副作用の疑いがない。
 - **操作**：
-  1. **Fixture A（並行再試行と遅延結果）**：同じ停止済み `"r-1"` を前提に、`"s-1"` から 2 件の再試行開始要求（`"r-2a"`, `"r-2b"`）をバリア同期で並行発行し、勝者 Run（`"r-2a"`）を敗者（`"r-2b"`）の照合完了まで実行中（`active_run_id == "r-2a"`）に保つ。続いて、同じ `session_id: "s-1"`, `generation: 2` を持つ旧 Run `"r-1"` の遅延結果（`result: "succeeded"`・Job 完了要求）を送信し、対照として独立監視機構が失効後 Run の専用観測経路で `activity: "stopped"` のみを記録する。
-  2. **Fixture B（安全閉鎖による同 Claim 再試行・後続開始）**：`"s-1"` が Claim を失効させずに `"r-unk-1"` の試行権限を安全閉鎖（永久閉鎖・終了 `result: "interrupted"`・外部フェンシング確認・`active_run_id: null`・`run_seq: 2`）し、同じ `active` Claim（`generation: 2`）へ新 Run `"r-unk-2"` を結合開始する（`run_seq: 3`）。同様に `"j-2a"` を単独中止（`canceled`）した上で安全閉鎖を満たし、後続 Job `"j-2b"` を同 Claim で開始する。対照として、別 Session `"s-2"` による巻き取りは `"r-unk-1"` が `unknown` の間は拒否されることも確認する。
+  1. **Fixture A**：`"r-1"`（`expected_run_seq: 2`）を前提に 2 件の再試行開始要求（`"r-2a"`, `"r-2b"`）をバリア同期で並行発行し、勝者 Run（`"r-2a"`）を敗者（`"r-2b"`）の照合完了まで実行中（`active_run_id == "r-2a"`）に保つ。続いて、同じ `session_id: "s-1"`, `generation: 2` を持つ旧 Run `"r-1"` の遅延結果（`result: "succeeded"`・Job 完了要求）を送信し、対照として独立監視機構が失効後 Run の専用観測経路で `activity: "stopped"` のみを記録する。
+  2. **Fixture B**：`"r-1"`（`expected_run_seq: 2`）を前提に同時発行された 2 件の再試行のうち、先着 `"r-2"` が開始（`run_seq: 3`）・終了（`active_run_id: null`, `run_seq: 4`）して空き枠に戻った後に、後着要求（依然 `"r-1"` / `expected_run_seq: 2` を前提とする古い要求）を到達させる。続いて `"r-2"`（`expected_run_seq: 4`）を前提に取り直した正当な再試行要求 `"r-3"` を送信する。
+  3. **Fixture C**：`"s-1"` が Claim を失効させずに `"r-unk-1"` の試行権限を安全閉鎖（永久閉鎖・終了 `result: "interrupted"`・外部フェンシング確認・`active_run_id: null`・`run_seq: 2`）し、同じ `active` Claim（`generation: 2`, `expected_run_seq: 2`）へ新 Run `"r-unk-2"` を結合開始する（`run_seq: 3`）。同様に `"j-2a"` を単独中止（`canceled`：即時試行権限無効化で `active_run_id: null`, `run_seq: 4`）した上で安全条件を確認し、後続 Job `"j-2b"` を同 Claim で開始する。対照として別 Session `"s-2"` の巻き取りは `"r-unk-1"` が `unknown` の間は拒否されることも確認する。
 - **期待結果**：
-  - 1 で開始前照合（`active_run_id == null`）の原子的結合により厳密に 1 件（`"r-2a"`, `run_seq: 3`）のみ起動し、`"r-2b"` は競合拒否される。同一 Session・同一 `generation: 2` の旧 `"r-1"` 遅延結果は開始後照合（`active_run_id != "r-1"`）により**拒否**され、独立監視経路のみが観測情報を記録して業務状態を変更しない。
-  - 2 で `R1` が `unknown` のままでも安全条件成立により Claim を失効させず同 Claim（`generation: 2`）で `"r-unk-2"` および単独中止後続 `"j-2b"` を開始でき、一方別 Session への巻き取りは全過去 Run 停止未確認のため**拒否**される。
+  - 1 で厳密に 1 件（`"r-2a"`, `run_seq: 3`）のみ起動し `"r-2b"` は競合拒否。同世代旧 `"r-1"` 遅延結果は開始後照合（`active_run_id != "r-1"`）で**拒否**され、独立監視経路のみが観測情報を記録して業務状態を変更しない。
+  - 2 で空き枠に戻った後に届いた `"r-1"` 前提（`expected_run_seq: 2 != 4`）の古い再試行要求は**拒否**され、`"r-2"` を前提に取り直した `"r-3"`（`expected_run_seq: 4`）のみ**許可**される。
+  - 3 で `R1` が `unknown` のままでも安全条件成立により Claim を失効させず同 Claim（`generation: 2`）で `"r-unk-2"` および単独中止後続 `"j-2b"` を開始でき、一方別 Session への巻き取りは全過去 Run 停止未確認のため**拒否**される。
 
-### UC-S02: 巻き取りの途中停止復旧・再送冪等性・既存予約衝突・切替時陳腐化拒否
-- **前提**：未終端の停止済み Ticket `"tk-old"`（`owner_id: "w-1"`, 全過去 Run `stopped`, `active_run_id: null`, 安全条件成立, Claim `generation: 2, run_seq: 2`）を用い、以下 4 パターン（独立フィクスチャ）を用意する。
+### UC-S02: 単一原子巻き取り契約の障害前後再送・パラメータ検証・競合操作線形化
+- **前提**：未終端の停止済み Ticket `"tk-1"`（親 Task `"t-1"`, `owner_id: "w-1"`, 全過去 Run `stopped`, `active_run_id: null`, 安全条件成立, Claim `generation: 2, run_seq: 2`）を用い、単一原子確定の公開境界に対する以下 5 パターン（独立フィクスチャ）を用意する。
 - **操作**：
-  1. **Pattern (a) 勝者 `S2` が永久に戻れない場合の認可済み復旧**：別 Worker `"w-2"` の Session `"s-2"`（`operation_id: "op-tk-a"`）が CAS（`generation: 2 → 3`, `state: "revoked"`, `takeover: { status: "reserved", successor_ticket_id: "tk-new-a" }`）成功直後に Session 終了（`Session.ended` 確定・永久離脱）する。予約中に旧 `"tk-old"` の再取得を試み、続いて認可された復旧主体（監査記録付き）が同一予約を確定し、その後 `"w-2"` の生存 Session `"s-2-live"` が後続 `"tk-new-a"` の Claim を取得する。
-  2. **Pattern (b) 勝者 `S2` による同一要求の再送（古い期待世代）**：`"s-2"`（生存復帰）が元の古い `expected_generation: 2` のまま同一 `operation_id: "op-tk-b"` で巻き取り要求を再送し、確定後にもう一度同一 `operation_id: "op-tk-b"`（`expected_generation: 2`）を再送する。
-  3. **Pattern (c) 別 Session `S3` が現行世代 3 で送る別要求の衝突拒否**：`"s-2"` の予約（`generation: 3`, `takeover.status: "reserved"` または `"committed"`）が存在する状態で、別 Worker `"w-3"` の Session `"s-3"` が**現行世代 `expected_generation: 3`** と別 `operation_id: "op-tk-c"` を提示して巻き取りを要求する。
-  4. **Pattern (d) 切替直前の旧 `S1` による同世代 `R2` 介入（陳腐化安全確認の拒否）**：`"s-2"` が `R1` 停止・安全確認を `(expected_generation: 2, expected_run_seq: 2)` で完了した直後、旧 `"s-1"` が同世代 `generation: 2` で新 Run `"r-2"` を開始（`run_seq: 3`）する。(d1) `"r-2"` が稼働中（`active_run_id: "r-2"`）のまま `"s-2"` の巻き取りが到着する場合、(d2) `"r-2"` が完了終了して `active_run_id` が再び `null`（`run_seq: 4`）に戻った後に `"s-2"` の古い確認 `(expected_generation: 2, expected_run_seq: 2)` に基づく巻き取りが到着する場合、の双方を実行する。
+  1. **Pattern (a) 確定後・応答喪失後の同一要求再送**：別 Worker `"w-2"` の生存 Session `"s-2"` が `(operation_id: "op-a", expected_generation: 2, expected_run_seq: 2, target_owner_id: "w-2", successor_ticket_id: "tk-2a")` で巻き取りを確定させた直後に応答を喪失させる。`"s-2"` が元の古い `(expected_generation: 2, expected_run_seq: 2)` のまま同一 `operation_id: "op-a"`・同一主体・同一実質パラメータで再送する。
+  2. **Pattern (b) 確定前障害（未確定）の外部不可視性と再送再検証**：巻き取りの確定前に障害を注入し、未確定のまま失敗させる。障害直後に別クライアントから読み取り・実行開始を試み、その後 `"s-2"` が再送する（さらに再送前に前提が変わった場合も検証）。
+  3. **Pattern (c) 同一 `operation_id` の主体・実質パラメータ不一致拒否**：Pattern (a) で確定済みの `operation_id: "op-a"` を再利用し、(c1) 別の認可主体（`"s-3"`）から送信、(c2) 同一主体だが `target_owner_id` や後続計画・`cancel_reason` 等の実質パラメータを変えて送信する。
+  4. **Pattern (d) 競合別要求・終了済み Session 非付与・世代非巻戻し・切替時 `R2` 介入拒否**：
+     - (d1) Pattern (a) 確定後（`generation: 3`）に別 Session `"s-3"` が別 `operation_id: "op-d"`・現行 `expected_generation: 3` で巻き取りを要求する。
+     - (d2) 確定時点で終了済み（`Session.ended`）の Session `"s-dead"` を指定して新 Ticket 巻き取りを要求する。また公開確定後に勝者 Session が通常終了した場合の後続処理を確認する。
+     - (d3) `"s-2"` が `R1` 停止・安全確認を `(expected_generation: 2, expected_run_seq: 2)` で完了した直後、旧 `"s-1"` が同世代で `"r-2"` を開始（`run_seq: 3`）・および完了終了（`active_run_id: null`, `run_seq: 4`）した後に `"s-2"` の巻き取りが到着する。
+  5. **Pattern (e) 競合操作との線形化境界（確定順 3 パターン）**：
+     - (e1) **親 Task 中止が先**：運用者が親 Task `"t-1"` を `canceled` に確定した直後に `"s-2"` の巻き取りが到達する。
+     - (e2) **旧 Job 証拠確定（`tk-1` 完了集約）が先**：認可済み証拠取り込みにより `"tk-1"` の最後 Job が `completed`（`"tk-1"` が `completed` 集約）に確定した直後に `"s-2"` の巻き取りが到達する。
+     - (e3) **巻き取りが先**：`"s-2"` の巻き取りが先に確定（`"tk-1"` が `canceled`、`"tk-2e"` 作成確定）した直後に、旧 `"tk-1"` への後着 Job 証拠確定、および運用者による親 Task `"t-1"` の中止が到達する。
 - **期待結果**：
-  - (a) 予約中から旧 `"tk-old"` の再取得は永久禁止により**拒否**される。認可済み復旧により `"tk-old"` は `canceled`（旧 Claim は二重失効・追加世代加算なし）へ終端化し、`"tk-new-a"` が厳密に 1 件確定する。終了済み `"s-2"` には新 Claim が**結合されず**、生存 `"s-2-live"` が取得するまで `"tk-new-a"` の Claim は `unassigned (generation: 1)` を維持し、取得時に `active (generation: 2)` となる。
-  - (b) 最優先の同一 `operation_id` 判定により、元の `expected_generation: 2` が現行世代 3 より古くても世代不一致で拒否されず、予約確定および 2 度目の再送で同一の後続 Ticket を冪等に返却する。
-  - (c) `"s-3"` は現行世代 3 を提示しているが、世代不一致ではなく**既存予約／確定済み衝突**を根拠に**拒否**され、正本は一切変更されない。
-  - (d) (d1)・(d2) のいずれも `run_seq` 不一致（`2 != 3` / `2 != 4`）により切替時に**拒否**され、稼働中介入および古い安全確認の流用を確実に防ぐ。
+  - (a) 元の期待世代/`run_seq` が古くても世代不一致とせず、同一の確定結果（`"tk-2a"`）を冪等返却し、追加の Ticket 作成・世代加算を行わない。
+  - (b) 未確定時は途中状態（旧 Ticket のみ終端化や部分的な後続 Claim 等）が読み取り・実行開始・成功応答から一切観測されず、再送時は現行の正本前提（`generation`, `run_seq`, 停止/安全確認, 非終端, 生存 Session）を再検証する。
+  - (c) (c1)・(c2) いずれも明示的に**拒否**され、正本は無変更。
+  - (d) (d1) `"s-3"` は拒否され部分変更ゼロ。(d2) 終了済み `"s-dead"` には決して `active` Claim を付与せず（`unassigned(gen=1)` または未確定拒否）、公開後の通常 Session 終了でも確定済み世代は決して巻き戻さない（通常の停止・安全確認＋巻き取りで `generation + 1`）。(d3) `"r-2"` 稼働中・終了後いずれも `run_seq` 不一致（`2 != 3` / `2 != 4`）で**拒否**。
+  - (e) (e1) 親 Task 中止が先→巻き取りは**拒否**され終端済み親 Task・`"tk-1"` は不変。(e2) 旧 Job 証拠確定が先→巻き取りは**拒否**され完了済み `"tk-1"` は不変。(e3) 巻き取りが先→後着の `"tk-1"` 証拠確定は終端保護で**拒否**され、後続の親 Task 中止は既に存在する `"tk-2e"` も対象に含めて `canceled`・Claim `revoked` とする。
 
-### UC-S03: 失効直前に認可された外部処理・同世代閉鎖 Run の確定側拒否と安全確認保留
-- **前提**：外部副作用を伴う Ticket `"tk-fx"` に対し、Session `"s-1"` が `generation: 2` の Claim を保持し、3 ケースを用意する：
+### UC-S03: 失効直前認可・同世代閉鎖 Run・Job 単独中止直後の外部効果確定側拒否と安全確認保留
+- **前提**：外部副作用を伴う Ticket `"tk-fx"`（`jobs: ["j-1", "j-2"]`）に対し、Session `"s-1"` が `generation: 2` の Claim を保持し、外部モックストア `ext_value = "v0"` に対して 4 ケースを用意する：
   - (1) Claim 失効直前に認可された外部操作 `op-ext-1`（`generation: 2`）
-  - (2) 同一 `generation: 2` 内で終了・閉鎖済みの旧 Run `"r-1"` から送出された外部操作 `op-ext-closed`（現行は `"r-2"`、`generation: 2`）
-  - (3) 失効前に外部側で実行開始済み・結果未確認の障害注入操作 `op-ext-2`
+  - (2) 同一 `generation: 2` 内で終了・閉鎖済みの旧 Run `"r-1"` からの外部操作 `op-ext-closed`（現行は `"r-2"`）
+  - (3) **`j-1` を単独中止（`canceled`）確定した直後、まだ `j-2` を開始する前**に結合中だった旧 Run `"r-j1"` から遅延到達する外部操作 `op-ext-after-job-cancel`
+  - (4) 失効前に外部側で実行開始済み・結果未確認の障害注入操作 `op-ext-2`
 - **操作**：
-  1. Claim が `generation: 3` へ進み `generation: 2` が失効した後に `op-ext-1` が外部ゲートウェイの効果確定口へ到達する。
-  2. 同一 `generation: 2` で `"r-1"` が閉鎖され `"r-2"` が現行となった後に、`op-ext-closed`（`run_id: "r-1"`, `generation: 2`）が外部ゲートウェイの効果確定口へ到達する。
-  3. `"s-1"` のプロセスは `activity: "stopped"` と確認されたが、失効前開始済みの `op-ext-2` の完了・ロールバックが未確認の状態で、後続 Session `"s-2"` が巻き取りおよび危険な後続実行を要求する。その後、`op-ext-2` の無効化・環境復旧の安全確認を完了してから `"s-2"` が再要求する。
+  1. Claim が `generation: 3` へ進んだ後に `op-ext-1` が外部ゲートウェイの効果確定口へ到達する。
+  2. 同一 `generation: 2` で `"r-1"` が閉鎖され `"r-2"` が現行となった後に `op-ext-closed` が効果確定口へ到達する。
+  3. `"j-1"` を単独中止（`canceled`）確定し、**後続 `"j-2"` を開始する前**に `op-ext-after-job-cancel`（`run_id: "r-j1"`, `generation: 2`）を外部ゲートウェイの効果確定口へ到達させる（あわせて Ticket の `active` Claim が失効していないこと、かつ `"j-2"` 開始前に停止確認または安全条件が別途要求されることを確認する）。
+  4. `"s-1"` のプロセスは `activity: "stopped"` と確認されたが、失効前開始済みの `op-ext-2` の完了・ロールバックが未確認の状態で後続 Session `"s-2"` が巻き取り・危険実行を要求し、その後 `op-ext-2` の無効化・環境復旧の安全確認完了後に再要求する。
 - **期待結果**：
-  - 1・2 ともに外部ゲートウェイの効果確定側が失効済み `generation: 2` および同世代の閉じた `run_id: "r-1"` を**拒否**し、外部副作用が確定しない。
-  - 3 で安全確認完了前の `"s-2"` 要求は**保留・拒否**され、安全確認・環境復旧完了後にのみ後続実行が許可される。
+  - 1・2・3 すべてにおいて外部ゲートウェイの効果確定側が対象操作を**拒否**し、`ext_value` が `"v0"` のまま変更されない。特に 3 では `"j-1"` 単独中止確定と同時に `"r-j1"` が即時無効化され（`active_run_id = null`, `run_seq + 1`）、Ticket の Claim を失効させずとも `"j-2"` 開始前の外部書込みが確実に遮断される。
+  - 4 で安全確認完了前の `"s-2"` 要求は**保留・拒否**され、安全確認・環境復旧完了後にのみ後続実行が許可される。
 
-### UC-S04: Claim がないときの管理操作・Task 待機・依存評価・証拠取り込み遷移
+### UC-S04: Claim 非依存・`active` Claim 付き未着手 Ticket の管理/依存評価/証拠取り込み遷移
 - **前提**：
-  - (A) Claim 未発行（論理的初期 Claim：`state: "unassigned"`, `generation: 1`, `run_seq: 0`）の Ticket `"tk-dep"`（`depends: ["tk-pre"]`）および `"tk-unclaimed-cancel"`。
-  - (B) Run を持たない Task `"t-wait-approval"`（配下 Ticket 終端済みまたは外部承認待ち計画あり）。
-  - (C) 2 つの Run 終了後フィクスチャ（いずれも現行 `active_run_id == null`）：`waiting` 中の Ticket `"tk-ev-wait"`（現在 Job `"j-ev-wait"`、閉じた旧 Run `"r-w1"`）と、Run 終了後も `doing` のまま残る Ticket `"tk-ev-doing"`（現在 Job `"j-ev-doing"`、閉じた旧 Run `"r-d1"`）。
+  - (A) Claim 未発行（論理的初期 Claim：`state: "unassigned"`, `generation: 1`, `run_seq: 0`）の Ticket `"tk-dep-unclaimed"`（`depends: ["tk-pre"]`）および `"tk-unclaimed-cancel"`。
+  - (B) **前提待ち中に Owner の Session が `active` Claim（`generation: 2`, `active_run_id: null`）を先行取得した未着手 Ticket `"tk-dep-claimed"`**（`status: "waiting"`, `depends: ["tk-pre2"]`, 現在 Job 未着手）。
+  - (C) Run を持たない Task `"t-wait-approval"`（配下 Ticket が **1 件以上ありすべて終端済み、かつ外部承認以外の全 `criteria` が成立済み**）。
+  - (D) 2 つの Run 終了後フィクスチャ（いずれも現行 `active_run_id == null`）：`waiting` 中の Ticket `"tk-ev-wait"`（現在 Job `"j-ev-wait"`、閉じた旧 Run `"r-w1"`）と、Run 終了後も `doing` のまま残る Ticket `"tk-ev-doing"`（現在 Job `"j-ev-doing"`、閉じた旧 Run `"r-d1"`）。
 - **操作**：
-  1. **依存評価**：`"tk-pre"` 未完了時に `"tk-dep"` の依存評価を実行し、さらに `"tk-pre"` を `canceled` にした後に再評価する。
-  2. **未取得 Ticket の管理中止**：権限保持運用者が未取得 Ticket `"tk-unclaimed-cancel"` を `cancel_reason` 付きで `canceled` にし、その後 `"tk-unclaimed-cancel"` の Claim 取得および終端復活を試みる。
-  3. **Run を持たない Task の計画内 `waiting`**：権限保持運用者が `"t-wait-approval"` を解除条件（正本 `Task.resume`）付きで `waiting` に遷移させ、その後、外部承認の確認証拠を認可経路で取り込んで `waiting` を解除（条件充足なら `completed`）する。
-  4. **Run 終了後 `waiting` / `doing` Job の証拠取り込み**：`"j-ev-wait"` および `"j-ev-doing"` に対し、(4a) 閉じた旧 Run（`"r-w1"`, `"r-d1"`）名義での直接完了送信を試み、(4b) 検証済み外部証拠を認可済み証拠取り込み経路（または現行 `active` Claim 保持 Session）で取り込んで `completed`（`result: "approved"` / `"passed"`）を確定する。
+  1. **未割当 Ticket 依存評価**：`"tk-pre"` 未完了時に `"tk-dep-unclaimed"` の依存評価を実行し、さらに `"tk-pre"` を `canceled` にした後に再評価する。
+  2. **`active` Claim 付き未着手 Ticket 依存評価**：`"tk-pre2"` が `completed` になった時点で認可済み依存評価経路を実行し、対照フィクスチャで前提 Ticket が `canceled` になった場合の再評価も実行する。
+  3. **未取得 Ticket の管理中止**：権限保持運用者が未取得 Ticket `"tk-unclaimed-cancel"` を `cancel_reason` 付きで `canceled` にし、その後 Claim 取得および終端復活を試みる。
+  4. **Run を持たない Task の計画内 `waiting`**：権限保持運用者が `"t-wait-approval"` を解除条件（正本 `Task.resume`）付きで `waiting` に遷移させ、その後、外部承認の確認証拠を認可経路で取り込んで `waiting` を解除・`completed` に確定する。
+  5. **Run 終了後 `waiting` / `doing` Job の証拠取り込み**：`"j-ev-wait"` および `"j-ev-doing"` に対し、(5a) 閉じた旧 Run（`"r-w1"`, `"r-d1"`）名義での直接完了送信を試み、(5b) 検証済み外部証拠を認可済み証拠取り込み経路（または現行 `active` Claim 保持 Session）で取り込んで `completed`（`result: "approved"` / `"passed"`）を確定する。
 - **期待結果**：
-  - 1 で Claim 未発行でも `"tk-dep"` が `todo → waiting → blocked` へ遷移し監査記録が残る。
-  - 2 で未取得 Ticket の Claim が `unassigned (gen=1) → revoked (gen=2)` へ一意確定し、以後の Claim 取得および終端復活はいずれも**拒否**される。
-  - 3 で Run を持たない Task が認可経路で計画内 `waiting` に入り、承認証拠の照合により解除・完了でき、監査記録が残る。
-  - 4 で (4a) 閉じた旧 Run 名義の直接更新は `waiting`/`doing` いずれも**拒否**され、(4b) 認可済み証拠取り込み経路でのみ両 Job が `completed` へ原子的に確定し監査記録が残る。
+  - 1 で Claim 未発行でも `"tk-dep-unclaimed"` が `todo → waiting → blocked` へ遷移し監査記録が残る。
+  - 2 で `active` Claim を保持する未着手 Ticket `"tk-dep-claimed"` が前提完了により `waiting → todo`（前提中止対照では `waiting → blocked`）へ解除・遷移し監査記録が残る（Run は自動開始されず、`active_run_id == null` を維持）。
+  - 3 で未取得 Ticket の Claim が `unassigned (gen=1) → revoked (gen=2)` へ一意確定し、以後の Claim 取得および終端復活はいずれも**拒否**される。
+  - 4 で Run を持たない Task が認可経路で計画内 `waiting` に入り、承認証拠の照合（配下 Ticket 全終端・他 `criteria` 成立）により `completed` へ確定し監査記録が残る。
+  - 5 で (5a) 閉じた旧 Run 名義の直接更新は `waiting`/`doing` いずれも**拒否**され、(5b) 認可済み証拠取り込み経路でのみ両 Job が `completed` へ原子的に確定し監査記録が残る。
 
 ### UC-S05: 保留（`paused`）解除時に `waiting`・`blocked` が残る場合
 - **前提**：
@@ -346,12 +366,12 @@
 | 7 | Ticket に複数 Owner を設定する | §3 単一 Owner, §10.1 #7 | UC-02 |
 | 8 | Ticket 確定後に Job 列を変更する | §4 確定後の変更, §10.1 #8 | UC-06, UC-12, UC-14 |
 | 9 | 終了済み Ticket を再開する | §5.1 終端状態, §6 終端の保持, §10.1 #9 | UC-13, UC-14, UC-S04 |
-| 10 | 循環する完了依存を許す | §7 実行依存, §8.1 待機・実行制御情報, §10.1 #10 | UC-11（未解決待機辺・解消済み除外・逆向き競合登録を含む） |
+| 10 | 循環する完了依存を許す | §7 実行依存, §8.1 待機・実行制御情報, §10.1 #10 | UC-11（保留/一時障害で保持中の未解決待機辺・解消済み除外・逆向き競合登録を含む） |
 | 11 | Handoff の閲覧権限を実行権と同一視する | §9.1 Handoff, §10.1 #11 | UC-15, UC-16, UC-22 |
 | 12 | Worker が同じという理由で実行権を共有させる | §3 Worker と Session の分離, §8.2, §10.1 #12 | UC-05, UC-26, UC-S01 |
 | 13 | 稼働中の Session から作業を巻き取る | §8.4 巻き取り可否条件, §10.1 #13 | UC-17, UC-25, UC-S02 |
 | 14 | 停止未確認の Session から作業を巻き取る | §8.3, §8.4 巻き取り可否条件, §10.1 #14 | UC-17, UC-19, UC-25, UC-S01 |
 | 15 | Heartbeat 切断のみで停止確認済みとする | §8.3 Heartbeat と停止確認の区別, §10.1 #15 | UC-19 |
-| 16 | Handoff を正式履歴の正本にする | §9.1 揮発性, §10.1 #16 | UC-22（再起動後の正本照合・消失横断の遅延適用拒否を含む） |
+| 16 | Handoff を正式履歴の正本にする | §9.1 揮発性, §10.1 #16 | UC-22（再起動後の正本照合・異/同正本版の遅延適用拒否・閉じた Run 名義拒否を含む） |
 | 17 | Handoff によって無関係な Ticket を直列化する | §8.2 並列実行, §9.1 Handoff, §10.1 #17 | UC-24, UC-S06 |
 | 18 | 特定の Agent・Bot・オーケストレーターへの依存を TTJ Core へ組み込む | §1 基本原則, §2 Worker, §10.1 #18 | UC-03, UC-27（**契約検査：Orca 非利用環境での動作に加え、`skills/ttj/` 配下の正本仕様・JSON 形式・Skill および Core 公開契約に Orca 固有の型・ID・接続・状態遷移への依存が一切存在しないことを確認**。[orca-adapter.md](orca-adapter.md)） |
