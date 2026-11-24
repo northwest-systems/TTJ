@@ -32,6 +32,7 @@ Project（id: pj-a1b2c3d4-1 等 / 名前を持つ継続領域・長期知識 kno
   - [任意] 期限がある場合だけ `deadline` をタイムゾーン付き ISO 8601 日時で記載する。
   - [禁止] 修正・再実行による Ticket 増加で Task を増殖させる、または完了 Ticket 数のみで達成率を決める。
 - [必須] **Ticket**：`id`（接頭辞 `tkt-`）・`task`・`worker_id`・`session_id`・`objective`・`jobs` を持つ、単一 Worker・単一 Session 担当・一方向進行の作業単位。
+  - [任意] その Ticket でやらないこと（対象外・除外事項）を `exclusions`（文字列の配列）に明記して認識すり合わせ精度を高め、実行時は対象外作業を行わない（`Job` には置かない）。
   - [禁止] 複数担当、Job ごとの個別担当、同一 Ticket の `worker_id`・`session_id` 変更、Ticket 独自の `criteria`、確定後の Job 列変更、終端 Ticket の再開。
   - [必須] 担当 Session が再開不可になった場合は、旧 Ticket を中止（`canceled` と `cancel_reason` を記録）して閉じ、同一 Task 配下に `refs` 付きの新規 Ticket を起票して新しい Session（`ssn-*`）で稼働させる。
   - [必須] 全 Job が `completed` または `canceled` になれば `completed` に集約し、Ticket 自身がキャンセル済みなら `canceled` と `cancel_reason` を維持する。

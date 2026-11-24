@@ -119,6 +119,7 @@
 - [必須] `session_id: string`：担当する単一の `Session.id`（`ssn-*`）。確定後の変更は禁止。
 - [必須] `objective: string`：達成したい目標。
 - [必須] `jobs: array<string>`：Job の ID（`job-*`）を実行順に1件以上並べる。確定後は固定。
+- [任意] `exclusions: array<string>`：その Ticket でやらないこと・除外事項（空配列 `[]`・1件・複数件すべてを許容）。LLM や認識のすり合わせ精度を上げるために記載する（`Job` には置かない）。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。
 - [任意] `depends: array<string>`：実行依存（先に `completed` になる必要がある前提 Ticket の ID（`tkt-*`）一覧）。循環依存は禁止。
 - [任意] `refs: array<object>`：情報共有用の参照一覧（実行依存 `depends` とは明確に区別する）。
@@ -138,6 +139,10 @@
       "worker_id": "wkr-7c8d9e0f-1",
       "session_id": "ssn-2b3c4d5e-1",
       "objective": "案内文の初稿を作成し確認準備を整える",
+      "exclusions": [
+        "参加者への案内メールの本送信は行わない",
+        "申込フォームの外部公開設定は変更しない"
+      ],
       "jobs": [
         "job-1a2b3c4d-1",
         "job-1a2b3c4d-2"

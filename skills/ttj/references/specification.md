@@ -57,6 +57,8 @@
 - [定義] **Ticket**：単一 Worker の単一 Session が担当する、一方向の作業単位。
   - [必須] `id`（接頭辞 `tkt-`）・`task`・`worker_id`・`session_id`・`objective`・`jobs` を持つ。
   - [必須] 単一の Task に属し、存在する単一の `Worker.id`（`wkr-*`）を `worker_id` で、その Worker に属する単一の `Session.id`（`ssn-*`）を `session_id` で参照し、1件以上の Job を持つ。
+  - [任意] その Ticket で「やらないこと（対象外・除外事項）」を `exclusions`（文字列の配列：空配列 `[]`・1件・複数件すべてを許容）に明記し、LLM や担当者間の認識すり合わせの精度を上げる（`exclusions` は `Ticket` にのみ配置し、`Job` や他のエンティティには配置しない）。
+  - [禁止] 実行時に `Ticket.exclusions` に記載された対象外・除外事項の作業を行う。
   - [定義] Ticket は短命でよく、次 Ticket が未作成でも終了・アーカイブできる。
   - [定義] 終了判定は Job の状態から行い、独自の `criteria` は持たない。
   - [禁止] 会話・Session・接続・Run の終了だけで Ticket を完了にする。
@@ -112,7 +114,7 @@
   - [必須] Job 列の結果で Ticket の `objective` を達成できることを確認する。
   - [任意] 正式作成前の Draft やテンプレートを編集する。
 - [禁止] **確定後の変更**：Ticket 確定後に担当セッション（`worker_id`・`session_id`）、Job 列、および作業定義を変更しない。
-  - [禁止] Job の追加・削除・移動・並べ替え、`objective`・`criteria`・`instructions` の実質変更、完了済み Job への巻き戻し・再入力。
+  - [禁止] Job の追加・削除・移動・並べ替え、`objective`・`exclusions`・`criteria`・`instructions` の実質変更、完了済み Job への巻き戻し・再入力。
   - [任意] 状態・結果・成果物参照・中止理由・管理記録を更新する。
 - [必須] **追加・修正・再実行**：修正・再実行・再レビュー・再開不可時の引き継ぎ・想定外の作業は通常の新 Ticket として同一 Task 配下に作成する。
   - [禁止] 終端 Task へ新 Ticket を追加する。

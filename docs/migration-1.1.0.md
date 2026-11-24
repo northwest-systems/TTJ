@@ -8,6 +8,7 @@ TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への変更点を「追�
 - 状態 `paused` と待機情報 `Run.wait`
 - 結果フィールド（`Job.result`, `Run.result`）と中止理由 `cancel_reason`
 - Task 所属の揮発性 `Handoff`（Task 完了時に消去、恒久知見のみ `Project.knowledge` へ昇格）
+- `Ticket.exclusions`（その Ticket でやらないこと・除外事項を明記する任意配列）
 - 派生参照 `Ticket.refs` と終了済み旧 Ticket のアーカイブ折りたたみ
 - ユースケース 10 件のサンプルパターン集（[skills/ttj/references/use-cases.md](../skills/ttj/references/use-cases.md)）
 

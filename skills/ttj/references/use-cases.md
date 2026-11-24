@@ -27,8 +27,8 @@
 Project 配下に長寿命の成果目標である `Task` を作成し、単一 Worker（`wkr-7c8d9e0f-1`）の単一 Session（`ssn-2b3c4d5e-1`）が担当する `Ticket` と最小実行単位の `Job` 列に分解して正式作成する。その後、`ssn-2b3c4d5e-1` が `Run` を開始し、確認可能な証拠に基づいて作業完了（`status: "completed"` / `Run.result: "succeeded"`）まで一方向に進める最も基本的なシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **正式作成と初期状態**：Task・Ticket・Job の初期 `status` はすべて `"todo"`、未実行 Job の `runs` は空配列 `[]`。Ticket は直接 `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）を変更しない。
-- **Run 開始**：対象 Ticket の `worker_id`・`session_id` と一致する Session が現在 Job の内部フィールド `runs`（`jobs[].runs`）に初回 `Run`（`run-*`）を追加し、実作業開始と同時に Job・Ticket・`todo` の親 Task を一括で `status: "doing"` に遷移させ、`Run.started` を記録する（実行中のため `result` と `ended` はまだ無い）。
+- **正式作成と初期状態**：Task・Ticket・Job の初期 `status` はすべて `"todo"`、未実行 Job の `runs` は空配列 `[]`。Ticket は直接 `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、任意フィールド `exclusions` で「その Ticket でやらないこと（対象外・除外事項）」を明記して LLM や担当者間の認識すり合わせ精度を高める（`exclusions` は `Ticket` にのみ配置し、`Job` には置かない）。確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）・作業定義を変更しない。
+- **Run 開始**：対象 Ticket の `worker_id`・`session_id` と一致する Session が現在 Job の内部フィールド `runs`（`jobs[].runs`）に初回 `Run`（`run-*`）を追加し、実作業開始と同時に Job・Ticket・`todo` の親 Task を一括で `status: "doing"` に遷移させ、`Run.started` を記録する（実行中のため `result` と `ended` はまだ無い）。実行時は `Ticket.exclusions` に記載された対象外作業を行わない。
 - **完了（completed / succeeded）と `status` / `result` 分離**：TTJ 1.1.0 では「作業工程の完了」を Task・Ticket・Job の `status: "completed"` で表し、Job の業務判定を `Job.result`（例：`"passed"`）、実行試行の成功を `Run.result: "succeeded"`（および `ended` 記録）として明確に分離する。
 
 ### サンプル JSON パターン
@@ -76,6 +76,10 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "worker_id": "wkr-7c8d9e0f-1",
       "session_id": "ssn-2b3c4d5e-1",
       "objective": "トークン検証ハンドラを実装し単体テストを通す",
+      "exclusions": [
+        "リフレッシュトークン発行エンドポイントの改修は行わない",
+        "本番環境の設定ファイルは変更しない"
+      ],
       "jobs": [
         "job-1a2b3c4d-1",
         "job-1a2b3c4d-2"
@@ -173,6 +177,10 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "worker_id": "wkr-7c8d9e0f-1",
       "session_id": "ssn-2b3c4d5e-1",
       "objective": "トークン検証ハンドラを実装し単体テストを通す",
+      "exclusions": [
+        "リフレッシュトークン発行エンドポイントの改修は行わない",
+        "本番環境の設定ファイルは変更しない"
+      ],
       "jobs": [
         "job-1a2b3c4d-1",
         "job-1a2b3c4d-2"
@@ -237,7 +245,7 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
 同一の `Task` 配下に、互いに実行依存を持たない独立した複数の `Ticket`（バックエンド実装 `tkt-2a3b4c5d-1` とフロントエンド実装 `tkt-2a3b4c5d-2`）を作成し、`wkr-7c8d9e0f-1`（`ssn-2b3c4d5e-1`）と `wkr-7c8d9e0f-2`（`ssn-9a8b7c6d-1`）がそれぞれの Ticket で並行して `Run` を同時実行するシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-7c8d9e0f-1`, `wkr-7c8d9e0f-2`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `worker_id` と `session_id` を設定する。
+- **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-7c8d9e0f-1`, `wkr-7c8d9e0f-2`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `worker_id` と `session_id` を設定する。各 Ticket の `exclusions` に相手側スコープ（やらないこと）を明記することで、並列実行時の変更衝突や重複作業を防ぐ。
 - **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 所属の単一スロット `Handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
 
 ### サンプル JSON パターン
@@ -285,6 +293,9 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "worker_id": "wkr-7c8d9e0f-1",
       "session_id": "ssn-2b3c4d5e-1",
       "objective": "検索APIエンドポイントを実装する",
+      "exclusions": [
+        "フロントエンドの検索UIコンポーネント（src/ui/）は変更しない"
+      ],
       "jobs": [
         "job-2b3c4d5e-1"
       ],
@@ -297,6 +308,9 @@ Project 配下に長寿命の成果目標である `Task` を作成し、単一 
       "worker_id": "wkr-7c8d9e0f-2",
       "session_id": "ssn-9a8b7c6d-1",
       "objective": "検索UIコンポーネントを実装する",
+      "exclusions": [
+        "バックエンドの検索API実装（src/api/）およびDBスキーマは変更しない"
+      ],
       "jobs": [
         "job-2b3c4d5e-2"
       ],
@@ -1114,7 +1128,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **レビュー差し戻し時の `status` と `result` の分離**：レビュー Job が差し戻し結論を出した場合、レビューという作業自体は完了しているため `Job.status: "completed"`, `Job.result: "changes_requested"` として確定し、レビュー Ticket も `status: "completed"` に集約する（独立した `Request` オブジェクトは導入しない）。
 - **確定後 Ticket への Job 追加禁止・終端 Ticket 再開禁止**：一度正式作成した Ticket の `jobs` 列に後から Job を追加したり、完了済みの作成 Ticket やレビュー Ticket を `doing` / `todo` に再開・巻き戻したりすることは**禁止**（禁止事項 #8, #9）。
-- **同一 Task 配下への新 Ticket 起票による追加 Job・新 Run 対応**：差し戻し修正や追加で必要になった Job 列は、**同一 Task（`tsk-*`）配下に新しい Ticket（`tkt-9c0d1e2f-3`）として起票**する（Task を新しく増殖させてはならない）。新 Ticket の `depends` にレビュー Ticket を指定し、`refs`（`kind: "fixes"` / `"derived_from"`）で初稿 Ticket の成果物とレビュー Ticket の指摘メモを参照した上で、新 Session（`ssn-2b3c4d5e-2`）で新 Run を実行する。
+- **同一 Task 配下への新 Ticket 起票による追加 Job・新 Run 対応**：差し戻し修正や追加で必要になった Job 列は、**同一 Task（`tsk-*`）配下に新しい Ticket（`tkt-9c0d1e2f-3`）として起票**する（Task を新しく増殖させてはならない）。新 Ticket の `depends` にレビュー Ticket を指定し、`refs`（`kind: "fixes"` / `"derived_from"`）で初稿 Ticket の成果物とレビュー Ticket の指摘メモを参照し、`exclusions` で修正対象外の範囲を明記した上で、新 Session（`ssn-2b3c4d5e-2`）で新 Run を実行する。
 
 ### サンプル JSON パターン
 
@@ -1177,6 +1191,10 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
       "worker_id": "wkr-7c8d9e0f-1",
       "session_id": "ssn-2b3c4d5e-2",
       "objective": "レビュー指摘に基づき鍵ローテーション手順を追記・検証する",
+      "exclusions": [
+        "承認済みのアクセス制御節（第1〜3章）の要件変更は行わない",
+        "本番ゲートウェイの実運用鍵のローテーション実行は行わない"
+      ],
       "jobs": [
         "job-9c0d1e2f-3",
         "job-9c0d1e2f-4"

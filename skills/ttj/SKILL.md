@@ -27,6 +27,7 @@ metadata:
   - [任意] 期限が指定されている場合だけ、Task の `deadline` にタイムゾーン付き ISO 8601 日時を記録する。
   - [禁止] 未指定の期限を作る、または期限を Ticket・Job へ転記する。
   - [必須] Ticket（`tkt-*`）には担当する単一の `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を指定し、`jobs` に Job の ID（`job-*`）を実行順に並べる。
+  - [任意] その Ticket でやらないこと（対象外・除外事項）がある場合は Ticket の `exclusions`（文字列の配列）に明記し、LLM や担当者間の認識すり合わせ精度を上げる（`Job` には置かない）。
   - [禁止] Ticket に複数担当を設定する、Job ごとに個別担当を設定する、確定後に Ticket の `worker_id` や `session_id` を変更する、旧 `assignee` や `Ticket.handoffs` を使う、Ticket 独自の `criteria` を設ける。
   - [任意] 手順が不足する場合だけ Job の `instructions` を補う。
   - [禁止] Job に複雑なワークフロー構造・子 Job・待機制御構造・独立 `Request` オブジェクト・種別分類を追加する。
@@ -54,6 +55,7 @@ metadata:
   - [必須] 対象 Ticket および現在 Job が `todo` または `doing`、親 Task が保留（`paused`）・終端ではない（親 Task が別 Ticket 起因で `waiting`・`blocked` でも独立した実行可能 Ticket・Job は開始できる）。
   - [必須] 実行する Session が対象 Ticket の `worker_id`（`wkr-*`）および `session_id`（`ssn-*`）と一致し、同一 Ticket で他に稼働中の有効な `Run` が存在しないことを確認する。
   - [禁止] 同じ Worker であることを理由に、対象 Ticket の `session_id` と異なる別 Session による無断実行を許可する。
+  - [禁止] `Ticket.exclusions` に記載された対象外・除外事項の作業を行う。
   - [必須] 同一 Ticket・同一 Session 内の通常再試行および（Job 単独中止後の）後続 Job 開始では、前の Run を閉鎖した上で停止確認または安全条件を確認してから新しい `Run` を開始する（残存副作用の疑いがあれば停止確認・復旧まで開始禁止）。
 - [必須] **Run 記録**：各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（`jobs[].runs[]`：未実行時は `[]`、1回実行時は `[ {...} ]`、再試行時は `[ {...}, {...} ]`）に、Job の1回の実行試行の正本として `Run`（`id`: `run-*`, `started`, 終了時の `ended` / `result`, `waiting` 時の `wait`）を記録する。
   - [禁止] `Run` を `Job` の外（`Ticket` 直下やルート直下）に配置する、または `Run` 内に冗長な親参照（`ticket_id`・`job`・`worker_id`・`session_id`・`wait.job_id`）を重複記載する。
