@@ -2,14 +2,18 @@
 
 - [定義] 以下は項目ごとの記入方法と例であり、ラベルはその行だけに適用する。
 - [必須] 作業規則は [規格本文](specification.md) に従う。
-- [必須] **単一ネスト構造の JSON フォーマット**：すべての TTJ JSON 文書は以下の単一の入れ子（ネスト）構造に統一する。ルート直下に `tasks`・`tickets`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、`Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
-  - [必須] **Root オブジェクト**：
+- [必須] **ルートスキーマ構造（`projects[].tasks[]` とルート `tickets[].jobs[].runs[]` の分離スキーマ）**：すべての TTJ JSON 文書は以下の単一ルートスキーマに統一する。ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、`Task` の内側に `tickets` をネストする構造、または `Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
+  - [必須] **Root オブジェクトのキー（以下の5つのみ。配列はいずれも空配列時は記載省略可）**：
     - `protocol`: `"TTJ/1.1.0"`（必須）
     - `workers`: `array<Worker>`（任意、空配列時は省略可）
     - `sessions`: `array<Session>`（任意、空配列時は省略可）
-    - `projects`: `array<Project>`（任意、空配列時は省略可）
-  - [必須] **作業階層のネスト**：`projects[].tasks[].tickets[].jobs[].runs[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）。子要素は親要素の内側に配置されるため、親 ID の逆参照（`Task.project`・`Ticket.task`・`Handoff.task_id` 等）は持たない。
-- [必須] **空配列の省略規則**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。
+    - `projects`: `array<Project>`（内部は `knowledge[]` と `tasks[]`（および `tasks[].handoff`）まで。`Task` の中に `tickets` は持たない。任意、空配列時は省略可）
+    - `tickets`: `array<Ticket>`（ルート直下の配列。各 `Ticket` は親 Task を指す `task_id` を必須とし、内部に `jobs[].runs[]` を持つ。任意、空配列時は省略可）
+  - [必須] **階層の責務と逆参照の整理**：Project / Task 階層は `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）で構成し、親要素の内側に置かれる `Task.project`・`Handoff.task_id` 等の逆参照や `Task` 内の `tickets`・`jobs` は持たない。Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離し、各 `Ticket` が必ず `task_id`（`tsk-*`）で親 Task を参照する（`Job` や `Run` は親の内側に置かれるため逆参照を持たない）。
+- [必須] **空配列の省略規則と単一スキーマでのファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。この規則により、**100% 同一のルート JSON スキーマ** のまま、チケット単位で別ファイルに分けて排他操作する運用と1ファイルにまとめる運用の双方を扱える。
+  - [定義] **Task 側のファイル（Project / Task 管理ファイル）**：`protocol` と `projects`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は空配列として省略するため、`tickets` や `jobs` の記載は一切不要となる。
+  - [定義] **Ticket 側のファイル（チケット単位の分割ファイル）**：`protocol` と `tickets`（内部に `jobs[].runs[]`）のみを記載し、`projects`, `workers`, `sessions` は空配列として省略する。各 Ticket は `task_id` で親 Task に紐づく。
+  - [定義] **1ファイルにまとめる場合**：同じルートオブジェクト内に `projects` と `tickets`（および必要に応じて `workers`, `sessions`）を両方記載する。
 - [定義] `protocol` の値は規格名と版を1項目で識別し、同じ文書内の子レコードへの転記は不要。
 - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
@@ -88,10 +92,9 @@
 - [任意] `deadline: string`：期限がある Task だけに完了期限（タイムゾーン付き ISO 8601）を書く。省略時は期限未設定として扱い、期限を過ぎてもそれだけで作業状態は変更しない。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・解除条件が一意に分からない場合に1文で記載する（揮発性 `handoff` への記載を理由に省略しない）。
 - [任意] `handoff: Handoff | null`：Task 所属の揮発性単一スロット（未設定時は省略可）。
-- [任意] `tickets: array<Ticket>`：Task に属する Ticket の配列（空配列時は省略可）。
-- [定義] `Task` は `Project.tasks[]` の内側に配置されるため、逆参照の `Task.project` フィールドは持たない。
-- [禁止] 期限を Ticket・Job へ重複記入させる。
-- [定義] 修正・再実行により Ticket が増えても、同一 Task 配下で管理する。
+- [定義] `tickets` はルート直下の `tickets[]` に分離されたため、`Task` オブジェクト内には `tickets`（および `jobs`）を持たない。また、`Task` は `Project.tasks[]` の内側に配置されるため、逆参照の `Task.project` フィールドも持たない。
+- [禁止] `Task` 内に `tickets` や `jobs` を持たせる、または期限を Ticket・Job へ重複記入させる。
+- [定義] 修正・再実行により Ticket が増えても、同一 Task（同じ `task_id`）に紐づけて管理する。
 
 ```json
 {
@@ -115,9 +118,10 @@
 }
 ```
 
-## 5. Ticket（`projects[].tasks[].tickets[]` の要素）
+## 5. Ticket（ルート `tickets[]` の要素）とファイル分割サンプル
 
 - [必須] `id: string`：Ticket の自動採番 ID（`tkt-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
+- [必須] `task_id: string`：所属する親 Task の ID（`tsk-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `worker_id: string`：担当する単一の `Worker.id`（`wkr-*`）。確定後の変更は禁止。
 - [必須] `session_id: string`：担当する単一の `Session.id`（`ssn-*`）。確定後の変更は禁止。
 - [必須] `objective: string`：達成したい目標。
@@ -128,10 +132,92 @@
 - [任意] `artifacts: array<string>`：成果物・証拠の参照一覧（空配列時は省略可）。
 - [必須] `cancel_reason: string`（条件付き必須）：Ticket を `status: "canceled"` にする場合は中止理由の記録を必須とする（非 `canceled` 時は省略可）。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・障害解除条件が一意に分からない場合に1文で記載する（揮発性 `handoff` への記載を理由に省略しない）。
-- [任意] `jobs: array<Job>`：`Job` オブジェクトの配列（ID 文字列配列ではなく `Job` 実体を実行順に格納する。確定後は固定、空配列時は省略可）。
-- [定義] `Ticket` は `Task.tickets[]` の内側に配置されるため、逆参照の `Ticket.task` フィールドは持たない。
-- [禁止] 旧 `assignee`、複数担当、確定後の `worker_id`・`session_id` 変更、Ticket 独自の `criteria`、旧 `Ticket.handoffs`、および `Ticket.jobs` を ID 文字列配列にする実体分離。
+- [任意] `jobs: array<Job>`：`Job` オブジェクトの配列（ID 文字列配列ではなく `Job` 実体を実行順に格納し、内部に `runs: array<Run>` を内包する。確定後は固定、空配列時は省略可）。
+- [禁止] 旧 `assignee`、複数担当、確定後の `worker_id`・`session_id` 変更、Ticket 独自の `criteria`、旧 `Ticket.handoffs`、`Task` 内への `tickets` ネスト、および `Ticket.jobs` を ID 文字列配列にする実体分離。
 - [必須] Ticket と全 Job の定義は正式作成時に一括確定する。
+
+### 5.1. ファイル分割する場合のサンプル（Task ファイルと Ticket ファイルの分離）
+
+チケット単位で別ファイルに分けて複数 Worker / Session が排他操作できるようにする場合、空配列省略規則により、**100% 同一のルート JSON スキーマ** のまま以下のように Task 側のファイルと Ticket 側のファイルに分割する。
+
+- [例] **Task 側のファイル（`projects[].tasks[]` のみで `tickets` / `jobs` の記載なし）**：`protocol` と `projects`（必要に応じて `workers`, `sessions`）のみを記載し、ルート `tickets` は空配列として省略する。
+
+```json
+{
+  "protocol": "TTJ/1.1.0",
+  "workers": [
+    {
+      "id": "wkr-7c8d9e0f-1",
+      "name": "Alpha"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "ssn-2b3c4d5e-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "started": "2026-01-01T01:00:00Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "pj-a1b2c3d4-1",
+      "name": "勉強会の運営",
+      "tasks": [
+        {
+          "id": "tsk-e5f6a7b8-1",
+          "objective": "勉強会の案内を用意する",
+          "criteria": [
+            "日時・会場・申込方法が正しい案内文が確定している"
+          ],
+          "status": "todo",
+          "deadline": "2026-01-08T18:00:00+09:00"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- [例] **Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）**：`protocol` とルート `tickets` のみを記載し、`projects`, `workers`, `sessions` は空配列として省略する。Ticket は `task_id`（`"tsk-e5f6a7b8-1"`）で親 Task に紐づく（未実行 Job の `runs` は空配列のため省略）。
+
+```json
+{
+  "protocol": "TTJ/1.1.0",
+  "tickets": [
+    {
+      "id": "tkt-c9d0e1f2-1",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内文の初稿を作成し確認準備を整える",
+      "exclusions": [
+        "参加者への案内メールの本送信は行わない",
+        "申込フォームの外部公開設定は変更しない"
+      ],
+      "jobs": [
+        {
+          "id": "job-1a2b3c4d-1",
+          "objective": "必要事項を揃えた案内文を作る",
+          "criteria": [
+            "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
+          ]
+        },
+        {
+          "id": "job-1a2b3c4d-2",
+          "objective": "案内文のリンクと開催日時を点検する",
+          "criteria": [
+            "リンク切れがなく開催要領と日時が一致している"
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 5.2. 1ファイルにまとめる場合のサンプル（`projects` と `tickets` を両方記載）
+
+- [例] 1つのファイルにまとめる場合もまったく同じルートスキーマに従い、同じルートオブジェクト内に `projects`（`projects[].tasks[]`）と `tickets`（`tickets[].jobs[].runs[]`）を両方記載する。
 
 ```json
 {
@@ -146,34 +232,35 @@
           "objective": "勉強会の案内を用意する",
           "criteria": [
             "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "tickets": [
-            {
-              "id": "tkt-c9d0e1f2-1",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "案内文の初稿を作成し確認準備を整える",
-              "exclusions": [
-                "参加者への案内メールの本送信は行わない",
-                "申込フォームの外部公開設定は変更しない"
-              ],
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-1",
-                  "objective": "必要事項を揃えた案内文を作る",
-                  "criteria": [
-                    "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
-                  ]
-                },
-                {
-                  "id": "job-1a2b3c4d-2",
-                  "objective": "案内文のリンクと開催日時を点検する",
-                  "criteria": [
-                    "リンク切れがなく開催要領と日時が一致している"
-                  ]
-                }
-              ]
-            }
+          ]
+        }
+      ]
+    }
+  ],
+  "tickets": [
+    {
+      "id": "tkt-c9d0e1f2-1",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内文の初稿を作成し確認準備を整える",
+      "exclusions": [
+        "参加者への案内メールの本送信は行わない",
+        "申込フォームの外部公開設定は変更しない"
+      ],
+      "jobs": [
+        {
+          "id": "job-1a2b3c4d-1",
+          "objective": "必要事項を揃えた案内文を作る",
+          "criteria": [
+            "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
+          ]
+        },
+        {
+          "id": "job-1a2b3c4d-2",
+          "objective": "案内文のリンクと開催日時を点検する",
+          "criteria": [
+            "リンク切れがなく開催要領と日時が一致している"
           ]
         }
       ]
@@ -182,7 +269,7 @@
 }
 ```
 
-## 6. Job と status / result 分離（`projects[].tasks[].tickets[].jobs[]` の要素）
+## 6. Job と status / result 分離（`tickets[].jobs[]` の要素）
 
 - [必須] `id: string`：Job の自動採番 ID（`job-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：達成したい目標。
@@ -195,39 +282,25 @@
 - [任意] `runs: array<Run>`：実行試行（`Run`）オブジェクトの配列（未実行等の空配列時は `[]` または記載省略）。`Run` を `Job` の外に出さない。
 - [定義] 親 Ticket と実行順序は `Ticket.jobs` 内の位置から分かるため、親 ID や順序番号を再記入しない。
 - [禁止] Job ごとの個別担当、複雑な分岐・子 Job・待機制御詳細、独立 `Request` オブジェクト、種別分類を追加する。
-- [例] 次は作成時の通常 Job（未実行のため `runs` は空配列 `[]` または省略可）。
+- [例] 次は作成時の通常 Job（未実行のため `runs` は省略、Ticket ファイル形式で表記）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-1",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内文の初稿を作成する",
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-1",
+          "objective": "必要事項を揃えた案内文を作る",
+          "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "tickets": [
-            {
-              "id": "tkt-c9d0e1f2-1",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "案内文の初稿を作成する",
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-1",
-                  "objective": "必要事項を揃えた案内文を作る",
-                  "instructions": "前回の開催要領と最新の会場情報を照合して下書きを作成する。",
-                  "criteria": [
-                    "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
-                  ]
-                }
-              ]
-            }
+            "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
           ]
         }
       ]
@@ -241,46 +314,32 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-2",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-2",
+      "session_id": "ssn-9a8b7c6d-1",
+      "objective": "案内文の初稿をレビューする",
+      "status": "completed",
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-3",
+          "objective": "案内文の記載内容を確認しレビュー結果を返す",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+            "元の開催情報との照合結果と判定が記録されている"
           ],
-          "tickets": [
+          "status": "completed",
+          "result": "changes_requested",
+          "artifacts": [
+            "review-notes/invitation-rev1.md"
+          ],
+          "runs": [
             {
-              "id": "tkt-c9d0e1f2-2",
-              "worker_id": "wkr-7c8d9e0f-2",
-              "session_id": "ssn-9a8b7c6d-1",
-              "objective": "案内文の初稿をレビューする",
-              "status": "completed",
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-3",
-                  "objective": "案内文の記載内容を確認しレビュー結果を返す",
-                  "criteria": [
-                    "元の開催情報との照合結果と判定が記録されている"
-                  ],
-                  "status": "completed",
-                  "result": "changes_requested",
-                  "artifacts": [
-                    "review-notes/invitation-rev1.md"
-                  ],
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-3",
-                      "started": "2026-01-01T02:00:00Z",
-                      "ended": "2026-01-01T02:15:00Z",
-                      "result": "succeeded"
-                    }
-                  ]
-                }
-              ]
+              "id": "run-5e6f7a8b-3",
+              "started": "2026-01-01T02:00:00Z",
+              "ended": "2026-01-01T02:15:00Z",
+              "result": "succeeded"
             }
           ]
         }
@@ -295,46 +354,32 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-6",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内ページの公開前検証を実施する",
+      "status": "completed",
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-4",
+          "objective": "公開前検証を実行し結果を記録する",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+            "全検証コマンドの実行ログと合否判定が保存されている"
           ],
-          "tickets": [
+          "status": "completed",
+          "result": "failed",
+          "artifacts": [
+            "logs/release-checks-01.log"
+          ],
+          "runs": [
             {
-              "id": "tkt-c9d0e1f2-6",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "案内ページの公開前検証を実施する",
-              "status": "completed",
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-4",
-                  "objective": "公開前検証を実行し結果を記録する",
-                  "criteria": [
-                    "全検証コマンドの実行ログと合否判定が保存されている"
-                  ],
-                  "status": "completed",
-                  "result": "failed",
-                  "artifacts": [
-                    "logs/release-checks-01.log"
-                  ],
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-4",
-                      "started": "2026-01-01T02:20:00Z",
-                      "ended": "2026-01-01T02:25:00Z",
-                      "result": "succeeded"
-                    }
-                  ]
-                }
-              ]
+              "id": "run-5e6f7a8b-4",
+              "started": "2026-01-01T02:20:00Z",
+              "ended": "2026-01-01T02:25:00Z",
+              "result": "succeeded"
             }
           ]
         }
@@ -347,7 +392,7 @@
 ## 7. 終了判定・中止と新 Ticket による再実行
 
 - [必須] Job は確認可能な証拠に基づき `criteria` をすべて満たしたら `completed`、中止を判断したら `canceled` にする。Job を単独で `canceled` にする場合は、実行中 Run があれば同時に終了（`result: "canceled"` 等を記録して閉鎖）し、停止要求を発行する。
-- [必須] 後続 Job を開始するには、先行 Job がすべて `completed` または `canceled` であることに加え、[規格本文](specification.md) 第6節・第8節の開始条件をすべて満たす必要がある：前提 Ticket が `completed`、対象 Ticket および現在 Job が `todo` または `doing`（`paused`・`blocked`・`waiting`・終端でないこと）、親 Task が `paused`・終端でないこと（親 Task が別 Ticket 起因で `waiting`・`blocked` であっても独立した実行可能 Ticket・Job は開始できる）、対象 Ticket の `worker_id`・`session_id` の一致、および先行 Job に対する停止確認または安全条件の確認。
+- [必須] 後続 Job を開始するには、先行 Job がすべて `completed` または `canceled` であることに加え、[規格本文](specification.md) 第6節・第8節の開始条件をすべて満たす必要がある：前提 Ticket が `completed`、対象 Ticket および現在 Job が `todo` または `doing`（`paused`・`blocked`・`waiting`・終端でないこと）、親 Task（`Ticket.task_id` が指す Task）が `paused`・終端でないこと（親 Task が別 Ticket 起因で `waiting`・`blocked` であっても独立した実行可能 Ticket・Job は開始できる）、対象 Ticket の `worker_id`・`session_id` の一致、および先行 Job に対する停止確認または安全条件の確認。
 - [必須] Ticket は全 Job が `completed` または `canceled` になれば `completed` にする。
 - [必須] Ticket 自身がキャンセル済みなら `canceled` を維持し、中止理由（`cancel_reason`）を必須保持する。
 - [定義] 次 Ticket が未作成でも、終了済み Ticket はアーカイブ・折りたたみできる。
@@ -356,64 +401,50 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-4",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "ステージング環境へ案内ページを反映する",
+      "status": "canceled",
+      "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
+      "artifacts": [
+        "logs/deploy-staging-01.log"
+      ],
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-5",
+          "objective": "ステージング用アセットをビルドする",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+            "ビルド成果物が生成されている"
           ],
-          "tickets": [
+          "status": "completed",
+          "result": "passed",
+          "runs": [
             {
-              "id": "tkt-c9d0e1f2-4",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "ステージング環境へ案内ページを反映する",
-              "status": "canceled",
-              "cancel_reason": "ステージング反映スクリプトがタイムアウトし環境整合を確認できなかったため中止。復旧確認後に新Ticketで再実行する。",
-              "artifacts": [
-                "logs/deploy-staging-01.log"
-              ],
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-5",
-                  "objective": "ステージング用アセットをビルドする",
-                  "criteria": [
-                    "ビルド成果物が生成されている"
-                  ],
-                  "status": "completed",
-                  "result": "passed",
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-5",
-                      "started": "2026-01-01T00:50:00Z",
-                      "ended": "2026-01-01T00:59:00Z",
-                      "result": "succeeded"
-                    }
-                  ]
-                },
-                {
-                  "id": "job-1a2b3c4d-6",
-                  "objective": "ステージング環境へ反映スクリプトを実行する",
-                  "criteria": [
-                    "ステージング環境への反映と疎通確認が完了している"
-                  ],
-                  "status": "canceled",
-                  "result": "error",
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-2",
-                      "started": "2026-01-01T01:00:00Z",
-                      "ended": "2026-01-01T02:00:00Z",
-                      "result": "error"
-                    }
-                  ]
-                }
-              ]
+              "id": "run-5e6f7a8b-5",
+              "started": "2026-01-01T00:50:00Z",
+              "ended": "2026-01-01T00:59:00Z",
+              "result": "succeeded"
+            }
+          ]
+        },
+        {
+          "id": "job-1a2b3c4d-6",
+          "objective": "ステージング環境へ反映スクリプトを実行する",
+          "criteria": [
+            "ステージング環境への反映と疎通確認が完了している"
+          ],
+          "status": "canceled",
+          "result": "error",
+          "runs": [
+            {
+              "id": "run-5e6f7a8b-2",
+              "started": "2026-01-01T01:00:00Z",
+              "ended": "2026-01-01T02:00:00Z",
+              "result": "error"
             }
           ]
         }
@@ -435,56 +466,42 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-3",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-2",
+      "objective": "レビュー指摘を反映して案内文を修正する",
+      "status": "todo",
+      "depends": [
+        "tkt-c9d0e1f2-2"
+      ],
+      "refs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "ticket_id": "tkt-c9d0e1f2-1",
+          "kind": "fixes",
+          "note": "初稿ドラフト成果物を引き継ぐ"
+        },
+        {
+          "ticket_id": "tkt-c9d0e1f2-2",
+          "kind": "derived_from",
+          "note": "changes_requested の指摘メモを参照"
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job-1a2b3c4d-7",
+          "objective": "指摘された会場アクセス表記を修正する",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "tickets": [
-            {
-              "id": "tkt-c9d0e1f2-3",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-2",
-              "objective": "レビュー指摘を反映して案内文を修正する",
-              "status": "todo",
-              "depends": [
-                "tkt-c9d0e1f2-2"
-              ],
-              "refs": [
-                {
-                  "ticket_id": "tkt-c9d0e1f2-1",
-                  "kind": "fixes",
-                  "note": "初稿ドラフト成果物を引き継ぐ"
-                },
-                {
-                  "ticket_id": "tkt-c9d0e1f2-2",
-                  "kind": "derived_from",
-                  "note": "changes_requested の指摘メモを参照"
-                }
-              ],
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-7",
-                  "objective": "指摘された会場アクセス表記を修正する",
-                  "criteria": [
-                    "最新の会場案内図と所要時間が案内文に反映されている"
-                  ]
-                },
-                {
-                  "id": "job-1a2b3c4d-8",
-                  "objective": "修正後の案内文全体の整合性を確認する",
-                  "criteria": [
-                    "全指摘事項の解消が確認されている"
-                  ]
-                }
-              ]
-            }
+            "最新の会場案内図と所要時間が案内文に反映されている"
+          ]
+        },
+        {
+          "id": "job-1a2b3c4d-8",
+          "objective": "修正後の案内文全体の整合性を確認する",
+          "criteria": [
+            "全指摘事項の解消が確認されている"
           ]
         }
       ]
@@ -498,35 +515,21 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
-          "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "tickets": [
-            {
-              "id": "tkt-c9d0e1f2-5",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "会場使用許可を反映して案内文を確定する",
-              "status": "waiting",
-              "resume": "会場管理者から最終使用許可の回答を受け取る"
-            }
-          ]
-        }
-      ]
+      "id": "tkt-c9d0e1f2-5",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "会場使用許可を反映して案内文を確定する",
+      "status": "waiting",
+      "resume": "会場管理者から最終使用許可の回答を受け取る"
     }
   ]
 }
 ```
 
-## 9. Run（`projects[].tasks[].tickets[].jobs[].runs[]` の要素）
+## 9. Run（`tickets[].jobs[].runs[]` の要素）
 
 - [定義] `Run` は Job の1回の実行試行を記録する正本。各 `Job` オブジェクトの内部フィールド `runs`（未実行等の空配列時は `[]` または記載省略）として保持し、実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
 - [禁止] `Run` を `Job` の外に配置する、または `Run` 内に外出し用の冗長な逆参照を持たせる。
@@ -535,52 +538,38 @@
 - [任意] `ended: string`：終了時刻（ISO 8601。終了確定時に時刻を確認できる場合は記録する）。
 - [必須] `result: string`（条件付き必須）：試行の結果（例：`succeeded`・`failed`・`interrupted`・`canceled`・`error` 等）。実行中は省略し、**Run の終了確定時は必須**とする。
 - [任意] `wait: object`：`waiting` 中の待機・実行制御情報（`target`・`condition`・`since`・`resume_point`・`timeout`・待機解消/解除時の `resolved`）。Job 直下ではなく各 Job 内の `Run.wait` で保持する。
-- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している `projects[].tasks[].tickets[].jobs[].runs[]` の例（実行中のため `result` と `ended` はまだ無い）。
+- [例] 次は複合スクリプト実行中の Job が外部操作の結果を `waiting` で待機している `tickets[].jobs[].runs[]` の例（実行中のため `result` と `ended` はまだ無い）。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-4",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "ステージング環境へ案内ページを反映する",
+      "status": "waiting",
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-6",
+          "objective": "ステージング環境へマイグレーションを適用する",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+            "承認枠内でマイグレーションが正常適用されている"
           ],
-          "tickets": [
+          "status": "waiting",
+          "runs": [
             {
-              "id": "tkt-c9d0e1f2-4",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "ステージング環境へ案内ページを反映する",
-              "status": "waiting",
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-6",
-                  "objective": "ステージング環境へマイグレーションを適用する",
-                  "criteria": [
-                    "承認枠内でマイグレーションが正常適用されている"
-                  ],
-                  "status": "waiting",
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-2",
-                      "started": "2026-01-01T01:00:00Z",
-                      "wait": {
-                        "target": "external-approval:staging-slot-7",
-                        "condition": "メンテナンス枠の開始承認を受け取る",
-                        "since": "2026-01-01T01:04:30Z",
-                        "resume_point": "step-3-apply-migration",
-                        "timeout": "2026-01-01T02:00:00Z"
-                      }
-                    }
-                  ]
-                }
-              ]
+              "id": "run-5e6f7a8b-2",
+              "started": "2026-01-01T01:00:00Z",
+              "wait": {
+                "target": "external-approval:staging-slot-7",
+                "condition": "メンテナンス枠の開始承認を受け取る",
+                "since": "2026-01-01T01:04:30Z",
+                "resume_point": "step-3-apply-migration",
+                "timeout": "2026-01-01T02:00:00Z"
+              }
             }
           ]
         }
@@ -595,43 +584,29 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
+  "tickets": [
     {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
+      "id": "tkt-c9d0e1f2-1",
+      "task_id": "tsk-e5f6a7b8-1",
+      "worker_id": "wkr-7c8d9e0f-1",
+      "session_id": "ssn-2b3c4d5e-1",
+      "objective": "案内文の初稿を作成する",
+      "status": "completed",
+      "jobs": [
         {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
+          "id": "job-1a2b3c4d-1",
+          "objective": "必要事項を揃えた案内文を作る",
           "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+            "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
           ],
-          "tickets": [
+          "status": "completed",
+          "result": "passed",
+          "runs": [
             {
-              "id": "tkt-c9d0e1f2-1",
-              "worker_id": "wkr-7c8d9e0f-1",
-              "session_id": "ssn-2b3c4d5e-1",
-              "objective": "案内文の初稿を作成する",
-              "status": "completed",
-              "jobs": [
-                {
-                  "id": "job-1a2b3c4d-1",
-                  "objective": "必要事項を揃えた案内文を作る",
-                  "criteria": [
-                    "日時・会場・申込方法が記載された案内文ドラフトが保存されている"
-                  ],
-                  "status": "completed",
-                  "result": "passed",
-                  "runs": [
-                    {
-                      "id": "run-5e6f7a8b-1",
-                      "started": "2026-01-01T01:00:00Z",
-                      "ended": "2026-01-01T01:20:00Z",
-                      "result": "succeeded"
-                    }
-                  ]
-                }
-              ]
+              "id": "run-5e6f7a8b-1",
+              "started": "2026-01-01T01:00:00Z",
+              "ended": "2026-01-01T01:20:00Z",
+              "result": "succeeded"
             }
           ]
         }

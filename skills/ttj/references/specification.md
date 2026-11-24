@@ -10,8 +10,8 @@
 - [定義] **TTJ**：担当や環境が変わっても、作業・申し送り・知識を安全に継続する規格。
   - [任意] 単一主体・複数主体の分担・担当引き継ぎ・長寿命 Task の継続運用に使う。
   - [必須] 必要な情報を一度だけ記録する。
-  - [必須] **単一ネスト構造の JSON フォーマット**：JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`projects` のみで構成し、作業階層は `projects[].tasks[].tickets[].jobs[].runs[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）の単一ネスト構造に統一する。親要素の内側に配置されるため逆参照（`Task.project`・`Ticket.task`・`Handoff.task_id` 等）は持たず、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する。
-  - [必須] **空配列の省略規則**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。
+  - [必須] **Task / Ticket 分離構造の単一 JSON スキーマ**：JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`projects`・`tickets` の5キーのみで構成し、Project / Task 階層は `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`。`Task` の中に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離・統一する。各 `Ticket` は所属する親 Task を `task_id`（`tsk-*`、必須）で参照し、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する（親要素の内側に配置される `Task.project`・`Handoff.task_id` 等の逆参照は持たない）。
+  - [必須] **空配列の省略規則とファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。これにより、100% 同一のルート JSON スキーマのまま、Task 側の管理ファイル（`protocol` と `projects` 等のみを記載し `tickets` は省略）と、チケット単位の分割ファイル（`protocol` と `tickets` のみを記載し `projects` 等は省略）にファイルを分けてチケット単位で排他操作する運用と、1ファイルにまとめる運用の双方を統一的に扱える。
   - [禁止] 不要な分類・専用の型・重複記入・不要な状態機械を増やす。
   - [禁止] 特定の Agent・Bot・オーケストレーター実装への依存を TTJ へ組み込む。
 - [定義] **規格の識別**：`protocol` は JSON 文書の規格名と版を表す。
@@ -46,8 +46,8 @@
   - [禁止] Task の終了・削除に連動して長期知識を失わせる。
   - [定義] 共通の作業状態や自動完了は規定しない。
 - [定義] **Task**：Project 内の長寿命な成果目標を管理する単位。
-  - [必須] `projects[].tasks[]` の要素として配置され、`id`（接頭辞 `tsk-`）・`objective`・`criteria` を持つ（`Project.tasks[]` の内側に配置されるため逆参照の `Task.project` フィールドは持たない）。
-  - [必須] 単一の Project に属し、目標・達成条件・複数 Ticket（`tickets`）の管理・結果集約・現在の進捗・ブロッカー・揮発性 Handoff（`handoff`）・最終達成判定を扱う。
+  - [必須] `projects[].tasks[]` の要素として配置され、`id`（接頭辞 `tsk-`）・`objective`・`criteria`（および任意の `status`・`deadline`・`resume`・`handoff`）を持つ（`Project.tasks[]` の内側に配置されるため逆参照の `Task.project` フィールドは持たず、`tickets` はルート直下の `tickets[]` に分離されるため `Task` 内には `tickets` や `jobs` を持たない）。
+  - [必須] 単一の Project に属し、目標・達成条件・ルート `tickets[]` のうち `task_id` で当該 Task に紐づく複数 Ticket の管理・結果集約・現在の進捗・ブロッカー・揮発性 Handoff（`handoff`）・最終達成判定を扱う。
   - [任意] 期限がある場合だけ `deadline` に Task の完了期限を書く。
   - [必須] 期限を記載する場合はタイムゾーン付きの ISO 8601 日時を使う。
   - [定義] 期限の超過そのものは作業状態の遷移条件にしない。
@@ -55,15 +55,15 @@
   - [禁止] 修正・再実行・再レビューによる Ticket 増加を理由に新しい Task を作成・増殖させる。
   - [禁止] Ticket の完了数だけで Task の達成率や目標達成を決定する。
 - [定義] **Ticket**：単一 Worker の単一 Session が担当する、一方向の作業単位。
-  - [必須] `projects[].tasks[].tickets[]` の要素として配置され、`id`（接頭辞 `tkt-`）・`worker_id`・`session_id`・`objective`・`jobs`（`Job` オブジェクトの配列、空配列時は省略可）を持つ（`Task.tickets[]` の内側に配置されるため逆参照の `Ticket.task` フィールドは持たない）。
-  - [必須] 単一の Task に属し、存在する単一の `Worker.id`（`wkr-*`）を `worker_id` で、その Worker に属する単一の `Session.id`（`ssn-*`）を `session_id` で参照し、`jobs` に `Job` 実体を実行順に格納する（ID 文字列配列による実体分離は行わない）。
+  - [必須] ルート直下の `tickets[]` の要素として配置され、`id`（接頭辞 `tkt-`）・`task_id`（所属する親 Task の ID `tsk-*`）・`worker_id`・`session_id`・`objective`・`jobs`（`Job` オブジェクトの配列、空配列時は省略可）を持つ。
+  - [必須] `task_id` で単一の親 Task（`tsk-*`）に属し、存在する単一の `Worker.id`（`wkr-*`）を `worker_id` で、その Worker に属する単一の `Session.id`（`ssn-*`）を `session_id` で参照し、`jobs` に `Job` 実体を実行順に格納する（ID 文字列配列による実体分離は行わない）。
   - [任意] その Ticket で「やらないこと（対象外・除外事項）」を `exclusions`（文字列の配列：空配列時は省略可）に明記し、LLM や担当者間の認識すり合わせの精度を上げる（`exclusions` は `Ticket` にのみ配置し、`Job` や他のエンティティには配置しない）。
   - [禁止] 実行時に `Ticket.exclusions` に記載された対象外・除外事項の作業を行う。
   - [定義] Ticket は短命でよく、次 Ticket が未作成でも終了・アーカイブできる。
   - [定義] 終了判定は Job の状態から行い、独自の `criteria` は持たない。
   - [禁止] 会話・Session・接続・Run の終了だけで Ticket を完了にする。
 - [定義] **Job**：完了可否を `criteria` で機械的または確認可能な証拠により判断できる最小実行単位。
-  - [必須] `projects[].tasks[].tickets[].jobs[]` の要素として配置され、`id`（接頭辞 `job-`）・`objective`・`criteria`（および任意の `instructions`・`status`・`result`・`artifacts`・`resume`・`runs`）を持つ。`runs` は実行試行 `Run` オブジェクトの配列とし、未実行等の空配列時は省略できる。
+  - [必須] `tickets[].jobs[]` の要素として配置され、`id`（接頭辞 `job-`）・`objective`・`criteria`（および任意の `instructions`・`status`・`result`・`artifacts`・`resume`・`runs`）を持つ。`runs` は実行試行 `Run` オブジェクトの配列とし、未実行等の空配列時は省略できる。
   - [必須] 単一 Ticket の `jobs` に属し、その位置で順序と親を特定する。
   - [任意] 目標だけでは手順が伝わらない場合だけ `instructions` を補う。
   - [禁止] 親 ID や順序番号を重複記入させる。
@@ -79,10 +79,10 @@
   - [必須] Project と Worker は対象を判別できる名称（`name`）を持つ。
   - [任意] 上記7種以外の他レコード（知識・監査記録等）の ID 形式・発行方法・保存先は運用で決める。
   - [禁止] 同じ ID を複数のレコードへ割り当てる、または Project・Task・Ticket・Job・Run・Worker・Session に指定外の ID 形式・接頭辞を使う。
-- [定義] **記入形式**：各階層は単一ネスト構造の中でそれぞれ必要な情報だけを持つ。
-  - [必須] 単一ネスト構造（`projects[].tasks[].tickets[].jobs[].runs[]`、および `projects[].knowledge[]`・`projects[].tasks[].handoff`）に従い、各要素は親の内側に保持する（ルート直下に `tasks`・`tickets`・`jobs`・`runs`・`handoff` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
+- [定義] **記入形式**：各階層は単一ルートスキーマの中でそれぞれ必要な情報だけを持つ。
+  - [必須] `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）とルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に `task_id` 必須）の分離スキーマに従う（`Task` の内側に `tickets` を置いたり、ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
   - [禁止] 共通化のために全階層へ同じ項目を追加する。
-  - [定義] フィールドと記入例は [JSON参照形式](json-format.md) に、代表的な場面ごとの状態遷移とサンプルパターンは [代表ユースケースとサンプルパターン](use-cases.md) に示す。
+  - [定義] フィールドと記入例およびファイル分割時のサンプルは [JSON参照形式](json-format.md) に、代表的な場面ごとの状態遷移とサンプルパターンは [代表ユースケースとサンプルパターン](use-cases.md) に示す。
 
 ## 3. 単一 Owner 原則と担当セッションの固定
 
@@ -290,7 +290,7 @@
 ### 8.1. Run（実行試行の正本）
 
 - [定義] **Run**：Job の1回の実行試行（Execution / Attempt に相当）を記録する正本。
-  - [必須] `Run` は `Job` にかかる実行試行であるため、`Job` の外に出さず、各 `Job` オブジェクトの内部フィールド `runs`（`projects[].tasks[].tickets[].jobs[].runs[]`：未実行等の空配列時は `[]` または記載省略）として保持する。
+  - [必須] `Run` は `Job` にかかる実行試行であるため、`Job` の外に出さず、各 `Job` オブジェクトの内部フィールド `runs`（`tickets[].jobs[].runs[]`：未実行等の空配列時は `[]` または記載省略）として保持する。
   - [必須] `id`（接頭辞 `run-`）と `started`（実作業開始時刻 ISO 8601）を必須記録する。
   - [必須] Run は実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（`succeeded`・`failed`・`canceled`・`interrupted`・`error` 等）を必須記録し、終了時刻を確認できる場合は `ended` も記録する。
   - [禁止] `Run` 内に外出し用の逆参照（`ticket_id`・`job`・`worker_id`・`session_id` および `Run.wait.job_id`）を重複記載する。
@@ -408,7 +408,7 @@
 - [必須] **準拠**：本書のすべての [必須] と [禁止] を満たす。
   - [必須] 部分適用では未対応範囲を示す。
   - [禁止] JSON や Skill だけで永続化・原子性・排他・外部副作用防止を保証したと称する。
-- [必須] **適合確認**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：接頭辞 `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・単一ネスト構造（`projects[].tasks[].tickets[].jobs[].runs[]`）の JSON フォーマットと空配列の省略規則（逆参照 `Task.project`・`Ticket.task`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
+- [必須] **適合確認**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：接頭辞 `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・`projects[].tasks[]` とルート `tickets[].jobs[].runs[]`（`Ticket.task_id` 必須）の分離スキーマと空配列の省略規則およびファイル分割対応（`Task` 内の `tickets` 保持・逆参照 `Task.project`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
   - [必須] 全 Job 終端時の Ticket 完了と、Ticket 自身の中止優先を確認する。
   - [必須] 中止 Job を含む Ticket の処理終了や Ticket 完了数と、Task の目標達成を区別する。
   - [必須] 同一 Worker の別 Session 無断実行、閉じた旧 Run 結果からの更新、前の実行が稼働中・停止未確認時の引き継ぎを拒否する。
