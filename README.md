@@ -6,18 +6,44 @@
   - [必須] Worker 種別（人間・Bot・AI 等）で業務ロジックや状態遷移を分岐させず、特定 Agent・Bot・オーケストレーターへ依存しない。
   - [必須] 必要な情報を一度だけ書き、不要な分類や状態機械を増やさない。
 
-```text
-Worker（責任主体：id: wkr-7c8d9e0f-1 等 / name）── Session（実行単位：id: ssn-2b3c4d5e-1 等 / worker_id）
-                                                        │
-Project（ルート単一オブジェクト project：id: pj-a1b2c3d4-1 等 / 名前を持つ継続領域・長期知識 knowledge[]）
-└── tasks[]（Task：id: tsk-e5f6a7b8-1 等 / 長寿命の成果目標・criteria・揮発性 Handoff 単一スロット handoff）
-        ▲
-        │ task_id: tsk-e5f6a7b8-1（ルート tickets[] に分離・チケット単位のファイル分割と排他操作が可能）
-tickets[]（ルート直下：担当セッション固定・確定後は固定の Job 列・一方向進行）
-├── Ticket A（id: tkt-c9d0e1f2-1 / task_id: tsk-* / worker_id: wkr-* / session_id: ssn-*）─┐
-├── Ticket B（id: tkt-c9d0e1f2-2 / task_id: tsk-* / worker_id: wkr-* / session_id: ssn-*）─┴─→ Ticket C（depends で完了待ち / refs で情報共有参照）
-└── jobs[]（Job 1 → Job 2 → …：id: job-1a2b3c4d-1, job-1a2b3c4d-2 等 / status と result を分離）
-    └── runs[]（Run：id: run-5e6f7a8b-1 等 / 各 Job 内の実行試行の正本・waiting 時の待機制御）
+```mermaid
+flowchart LR
+    Root["TTJ JSON Root（protocol: TTJ/1.1.0 / 実線: 内包 / 破線: ID 参照）"]
+
+    Project["project: Project（単一・pj-*）"]
+    Knowledge["knowledge[]（長期知識）"]
+    Task["tasks[] / Task（tsk-*・criteria）"]
+    Handoff["handoff（揮発性単一スロット）"]
+
+    Tickets["tickets[]（ルート配列 / 分割可）"]
+    Ticket["Ticket（tkt-*・担当固定）"]
+    OtherTicket["他 Ticket（前提・関連）"]
+    Jobs["jobs[] / Job（job-*・status / result 分離）"]
+    Runs["runs[] / Run（run-*・wait）"]
+
+    Session["sessions[] / Session（ssn-*）"]
+    Worker["workers[] / Worker（wkr-*）"]
+
+    Root --> Project
+    Root --> Tickets
+    Root --> Session
+    Root --> Worker
+
+    Project --> Knowledge
+    Project --> Task
+    Task --> Handoff
+
+    Tickets --> Ticket
+    Tickets --> OtherTicket
+    Ticket --> Jobs
+    Jobs --> Runs
+
+    Ticket -. "task_id" .-> Task
+    Ticket -. "depends（完了依存）" .-> OtherTicket
+    Ticket -. "refs（情報共有参照）" .-> OtherTicket
+    Ticket -. "session_id" .-> Session
+    Ticket -. "worker_id" .-> Worker
+    Session -. "worker_id" .-> Worker
 ```
 
 - [必須] **規格の識別**：独立した JSON 文書のルートに `protocol: "TTJ/1.1.0"` を持つ。
