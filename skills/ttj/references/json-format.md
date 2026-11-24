@@ -2,18 +2,18 @@
 
 - [定義] 以下は項目ごとの記入方法と例であり、ラベルはその行だけに適用する。
 - [必須] 作業規則は [規格本文](specification.md) に従う。
-- [必須] **ルートスキーマ構造（`projects[].tasks[]` とルート `tickets[].jobs[].runs[]` の分離スキーマ）**：すべての TTJ JSON 文書は以下の単一ルートスキーマに統一する。ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、`Task` の内側に `tickets` をネストする構造、または `Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
-  - [必須] **Root オブジェクトのキー（以下の5つのみ。配列はいずれも空配列時は記載省略可）**：
+- [必須] **配列と単一オブジェクトの原則、およびルートスキーマ構造（`project.tasks[]` とルート `tickets[].jobs[].runs[]` の分離スキーマ）**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列 `[]`・1件・複数件すべて許容、空配列時は記載省略可）とし、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は配列にせず単一オブジェクトとする。すべての TTJ JSON 文書は以下の単一ルートスキーマに統一する。ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、ルートの `project` を配列 `projects` にする構造、`Task` の内側に `tickets` をネストする構造、または `Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
+  - [必須] **Root オブジェクトのキー（以下の5つのみ。配列はいずれも空配列時は記載省略可、単一オブジェクト `project` も未記載時は省略可）**：
     - `protocol`: `"TTJ/1.1.0"`（必須）
-    - `workers`: `array<Worker>`（任意、空配列時は省略可）
-    - `sessions`: `array<Session>`（任意、空配列時は省略可）
-    - `projects`: `array<Project>`（内部は `knowledge[]` と `tasks[]`（および `tasks[].handoff`）まで。`Task` の中に `tickets` は持たない。任意、空配列時は省略可）
-    - `tickets`: `array<Ticket>`（ルート直下の配列。各 `Ticket` は親 Task を指す `task_id` を必須とし、内部に `jobs[].runs[]` を持つ。任意、空配列時は省略可）
-  - [必須] **階層の責務と逆参照の整理**：Project / Task 階層は `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）で構成し、親要素の内側に置かれる `Task.project`・`Handoff.task_id` 等の逆参照や `Task` 内の `tickets`・`jobs` は持たない。Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離し、各 `Ticket` が必ず `task_id`（`tsk-*`）で親 Task を参照する（`Job` や `Run` は親の内側に置かれるため逆参照を持たない）。
-- [必須] **空配列の省略規則と単一スキーマでのファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。この規則により、**100% 同一のルート JSON スキーマ** のまま、チケット単位で別ファイルに分けて排他操作する運用と1ファイルにまとめる運用の双方を扱える。
-  - [定義] **Task 側のファイル（Project / Task 管理ファイル）**：`protocol` と `projects`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は空配列として省略するため、`tickets` や `jobs` の記載は一切不要となる。
-  - [定義] **Ticket 側のファイル（チケット単位の分割ファイル）**：`protocol` と `tickets`（内部に `jobs[].runs[]`）のみを記載し、`projects`, `workers`, `sessions` は空配列として省略する。各 Ticket は `task_id` で親 Task に紐づく。
-  - [定義] **1ファイルにまとめる場合**：同じルートオブジェクト内に `projects` と `tickets`（および必要に応じて `workers`, `sessions`）を両方記載する。
+    - `workers`: `array<Worker>`（0〜複数あり得るため配列、空配列時は省略可）
+    - `sessions`: `array<Session>`（0〜複数あり得るため配列、空配列時は省略可）
+    - `project`: `Project`（1つに定まっているため単一オブジェクト。Ticket 分割ファイル等で記載しない場合は省略可。内部に `id`, `name`, `knowledge[]`, `tasks[]`（および `tasks[].handoff`）を持ち、`Task` の中に `tickets` は持たない）
+    - `tickets`: `array<Ticket>`（0〜複数あり得るため配列、空配列時は省略可。各 `Ticket` は親 Task を指す `task_id` を必須とし、内部に `jobs[].runs[]` を持つ）
+  - [必須] **階層の責務と逆参照の整理**：Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`）で構成し、親要素の内側に置かれる `Task.project`・`Handoff.task_id` 等の逆参照や `Task` 内の `tickets`・`jobs` は持たない。Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離し、各 `Ticket` が必ず `task_id`（`tsk-*`）で親 Task を参照する（`Job` や `Run` は親の内側に置かれるため逆参照を持たない）。
+- [必須] **省略規則と単一スキーマでのファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。また、単一オブジェクトの `project` も Ticket 分割ファイル等で記載しない場合は省略できる。この規則により、**100% 同一のルート JSON スキーマ** のまま、チケット単位で別ファイルに分けて排他操作する運用と1ファイルにまとめる運用の双方を扱える。
+  - [定義] **Task 側のファイル（Project / Task 管理ファイル）**：`protocol` と単一オブジェクト `project`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は空配列として省略するため、`tickets` や `jobs` の記載は一切不要となる。
+  - [定義] **Ticket 側のファイル（チケット単位の分割ファイル）**：`protocol` と `tickets`（内部に `jobs[].runs[]`）のみを記載し、`project`, `workers`, `sessions` は省略する。各 Ticket は `task_id` で親 Task に紐づく。
+  - [定義] **1ファイルにまとめる場合**：同じルートオブジェクト内に単一オブジェクト `project` と配列 `tickets`（および必要に応じて `workers`, `sessions`）を両方記載する。
 - [定義] `protocol` の値は規格名と版を1項目で識別し、同じ文書内の子レコードへの転記は不要。
 - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
@@ -63,7 +63,7 @@
 }
 ```
 
-## 3. Project（`projects[]` の要素）
+## 3. Project（ルート単一オブジェクト `project`）
 
 - [必須] `id: string`：Project を一意に参照する自動採番 ID（`pj-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `name: string`：何の領域か分かる名前（ID は自動採番とし、人間が判別しやすい名称は `name` に記載する）。
@@ -74,16 +74,14 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営"
-    }
-  ]
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営"
+  }
 }
 ```
 
-## 4. Task（`projects[].tasks[]` の要素）
+## 4. Task（`project.tasks[]` の要素）
 
 - [必須] `id: string`：Task の自動採番 ID（`tsk-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：長寿命の成果目標。
@@ -99,22 +97,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
-          "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "deadline": "2026-01-08T18:00:00+09:00"
-        }
-      ]
-    }
-  ]
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "勉強会の案内を用意する",
+        "criteria": [
+          "日時・会場・申込方法が正しい案内文が確定している"
+        ],
+        "deadline": "2026-01-08T18:00:00+09:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -138,9 +134,9 @@
 
 ### 5.1. ファイル分割する場合のサンプル（Task ファイルと Ticket ファイルの分離）
 
-チケット単位で別ファイルに分けて複数 Worker / Session が排他操作できるようにする場合、空配列省略規則により、**100% 同一のルート JSON スキーマ** のまま以下のように Task 側のファイルと Ticket 側のファイルに分割する。
+チケット単位で別ファイルに分けて複数 Worker / Session が排他操作できるようにする場合、省略規則により、**100% 同一のルート JSON スキーマ** のまま以下のように Task 側のファイルと Ticket 側のファイルに分割する。
 
-- [例] **Task 側のファイル（`projects[].tasks[]` のみで `tickets` / `jobs` の記載なし）**：`protocol` と `projects`（必要に応じて `workers`, `sessions`）のみを記載し、ルート `tickets` は空配列として省略する。
+- [例] **Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）**：`protocol` と単一オブジェクト `project`（必要に応じて `workers`, `sessions`）のみを記載し、ルート `tickets` は空配列として省略する。
 
 ```json
 {
@@ -158,27 +154,25 @@
       "started": "2026-01-01T01:00:00Z"
     }
   ],
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
-          "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ],
-          "status": "todo",
-          "deadline": "2026-01-08T18:00:00+09:00"
-        }
-      ]
-    }
-  ]
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "勉強会の案内を用意する",
+        "criteria": [
+          "日時・会場・申込方法が正しい案内文が確定している"
+        ],
+        "status": "todo",
+        "deadline": "2026-01-08T18:00:00+09:00"
+      }
+    ]
+  }
 }
 ```
 
-- [例] **Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）**：`protocol` とルート `tickets` のみを記載し、`projects`, `workers`, `sessions` は空配列として省略する。Ticket は `task_id`（`"tsk-e5f6a7b8-1"`）で親 Task に紐づく（未実行 Job の `runs` は空配列のため省略）。
+- [例] **Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）**：`protocol` とルート `tickets` のみを記載し、`project`, `workers`, `sessions` は省略する。Ticket は `task_id`（`"tsk-e5f6a7b8-1"`）で親 Task に紐づく（未実行 Job の `runs` は空配列のため省略）。
 
 ```json
 {
@@ -215,28 +209,26 @@
 }
 ```
 
-### 5.2. 1ファイルにまとめる場合のサンプル（`projects` と `tickets` を両方記載）
+### 5.2. 1ファイルにまとめる場合のサンプル（`project` と `tickets` を両方記載）
 
-- [例] 1つのファイルにまとめる場合もまったく同じルートスキーマに従い、同じルートオブジェクト内に `projects`（`projects[].tasks[]`）と `tickets`（`tickets[].jobs[].runs[]`）を両方記載する。
+- [例] 1つのファイルにまとめる場合もまったく同じルートスキーマに従い、同じルートオブジェクト内に単一オブジェクト `project`（`project.tasks[]`）と配列 `tickets`（`tickets[].jobs[].runs[]`）を両方記載する。
 
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
-          "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
-          ]
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "勉強会の案内を用意する",
+        "criteria": [
+          "日時・会場・申込方法が正しい案内文が確定している"
+        ]
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-c9d0e1f2-1",
@@ -616,9 +608,9 @@
 }
 ```
 
-## 10. Handoff（`projects[].tasks[].handoff`：Task 所属の揮発性単一スロット）
+## 10. Handoff（`project.tasks[].handoff`：Task 所属の揮発性単一スロット）
 
-- [定義] `handoff` は `Task` オブジェクト内（`projects[].tasks[].handoff`）に最大1つ持つ揮発性の引き継ぎ・状況スロット（`Handoff | null`、任意・未設定時は省略可）。`Task` の内側に配置されるため逆参照の `Handoff.task_id` は持たない。Task 完了時に消去し、恒久的な知見のみ `Project.knowledge` へ昇格させる。
+- [定義] `handoff` は `Task` オブジェクト内（`project.tasks[].handoff`）に最大1つ持つ揮発性の引き継ぎ・状況スロット（`Handoff | null`、任意・未設定時は省略可）。`Task` の内側に配置されるため逆参照の `Handoff.task_id` は持たない。Task 完了時に消去し、恒久的な知見のみ `Project.knowledge` へ昇格させる。
 - [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID（`tkt-*`）。
 - [任意] `worker_id: string | null`：対象 Ticket の `Worker.id`（`wkr-*`）。
 - [任意] `session_id: string | null`：対象 Ticket を担当する `Session.id`（`ssn-*`）。
@@ -634,40 +626,38 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "勉強会の案内を用意する",
-          "criteria": [
-            "日時・会場・申込方法が正しい案内文が確定している"
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "勉強会の案内を用意する",
+        "criteria": [
+          "日時・会場・申込方法が正しい案内文が確定している"
+        ],
+        "status": "doing",
+        "handoff": {
+          "current_ticket_id": "tkt-c9d0e1f2-3",
+          "worker_id": "wkr-7c8d9e0f-1",
+          "session_id": "ssn-2b3c4d5e-2",
+          "current_job_id": "job-1a2b3c4d-7",
+          "context": "レビュー指摘3件のうち日時表記と申込URLを修正済み。残り1件の会場アクセス表記を反映中。",
+          "stop_position": "会場アクセス節の照合前",
+          "notes": [
+            "最新ドラフトは drafts/invitation-v2.md に保存済み。"
           ],
-          "status": "doing",
-          "handoff": {
-            "current_ticket_id": "tkt-c9d0e1f2-3",
-            "worker_id": "wkr-7c8d9e0f-1",
-            "session_id": "ssn-2b3c4d5e-2",
-            "current_job_id": "job-1a2b3c4d-7",
-            "context": "レビュー指摘3件のうち日時表記と申込URLを修正済み。残り1件の会場アクセス表記を反映中。",
-            "stop_position": "会場アクセス節の照合前",
-            "notes": [
-              "最新ドラフトは drafts/invitation-v2.md に保存済み。"
-            ],
-            "updated": "2026-01-01T03:10:00Z"
-          }
+          "updated": "2026-01-01T03:10:00Z"
         }
-      ]
-    }
-  ]
+      }
+    ]
+  }
 }
 ```
 
-## 11. 長期知識（`projects[].knowledge[]` の要素）
+## 11. 長期知識（`project.knowledge[]` の要素）
 
-- [任意] Project の `knowledge`（`projects[].knowledge[]`、空配列時は省略可）に再利用する知見を残す。
+- [任意] Project の `knowledge`（`project.knowledge[]`、空配列時は省略可）に再利用する知見を残す。
 - [必須] 記録する場合は `content: string` に残す内容、`basis: string` に根拠・判断理由・出典をまとめる。
 - [必須] 元の Task・Ticket がなくても内容と判断経緯を理解できる。
 - [必須] 知識は `id` で識別し、採用状態と変更履歴を保持する。
@@ -681,33 +671,31 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "勉強会の運営",
-      "knowledge": [
-        {
-          "id": "invitation-short-form",
-          "status": "supersed",
-          "content": "申込先を中心に短い案内を作る",
-          "basis": "初回の案内作成時に、読む量を減らす方針として採用した。"
-        },
-        {
-          "id": "invitation-required-details",
-          "status": "active",
-          "content": "案内には日時・会場・申込方法をすべて記載する",
-          "basis": "初回案内後に日時と会場の質問が相次いだため、必要情報を案内だけで確認できる方針へ変更した。",
-          "supersedes": "invitation-short-form"
-        },
-        {
-          "id": "invitation-automation-plan",
-          "status": "active",
-          "content": "次回は案内配信の自動化を検討する予定。",
-          "basis": "準備作業を減らすため、次回の検討事項として記録する。効果と運用負担は今後確認する。"
-        }
-      ]
-    }
-  ]
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "勉強会の運営",
+    "knowledge": [
+      {
+        "id": "invitation-short-form",
+        "status": "supersed",
+        "content": "申込先を中心に短い案内を作る",
+        "basis": "初回の案内作成時に、読む量を減らす方針として採用した。"
+      },
+      {
+        "id": "invitation-required-details",
+        "status": "active",
+        "content": "案内には日時・会場・申込方法をすべて記載する",
+        "basis": "初回案内後に日時と会場の質問が相次いだため、必要情報を案内だけで確認できる方針へ変更した。",
+        "supersedes": "invitation-short-form"
+      },
+      {
+        "id": "invitation-automation-plan",
+        "status": "active",
+        "content": "次回は案内配信の自動化を検討する予定。",
+        "basis": "準備作業を減らすため、次回の検討事項として記録する。効果と運用負担は今後確認する。"
+      }
+    ]
+  }
 }
 ```
 

@@ -2,7 +2,7 @@
 
 本文書は、[規格本文](specification.md) および [JSON参照形式](json-format.md) を実運用へ適用する際に迷いやすい代表的な **10場面（UC-01〜UC-10）** について、**「どのような場面か（シナリオ）」「規格上のポイント（どの状態・フィールドを使うか）」「サンプル JSON パターン」** をまとめた実践リファレンスである。
 
-すべての JSON サンプルは TTJ 1.1.0 の単一ルートスキーマ（ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`projects`・`tickets` の5つのみ、Project / Task 階層は `projects[].tasks[]` および `projects[].knowledge[]`・`projects[].tasks[].handoff`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に完全準拠している。空配列 `[]` のフィールドは記載自体を省略できる規則により、1ファイルに `projects` と `tickets` を両方記載するパターンと、Task 側のファイル（`projects[].tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
+すべての JSON サンプルは TTJ 1.1.0 の配列・単一オブジェクト原則と単一ルートスキーマ（0〜複数があり得る項目のみ配列とし、1つだけに定まっている項目は単一オブジェクトとする原則に基づき、ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つのみ、Project / Task 階層は `project.tasks[]` および `project.knowledge[]`・`project.tasks[].handoff`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に完全準拠している。空配列 `[]` および未記載の単一オブジェクト `project` は記載自体を省略できる規則により、1ファイルに `project` と `tickets` を両方記載するパターンと、Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
 
 ---
 
@@ -24,10 +24,10 @@
 ## UC-01: 基本の実行フロー
 
 ### どのような場面か（シナリオ）
-`Project` 配下に長寿命の成果目標である `Task`（`projects[].tasks[]`）を作成し、その Task に紐づく単一 Worker（`wkr-7c8d9e0f-1`）・単一 Session（`ssn-2b3c4d5e-1`）担当の `Ticket`（ルート `tickets[]`、`task_id: "tsk-e5f6a7b8-1"`）と最小実行単位の `Job` 列（`tickets[].jobs[]`）を正式作成する。その後、`ssn-2b3c4d5e-1` が `Run` を開始し、確認可能な証拠に基づいて作業完了（`status: "completed"` / `Run.result: "succeeded"`）まで一方向に進める最も基本的なシナリオ。
+`Project` 配下に長寿命の成果目標である `Task`（`project.tasks[]`）を作成し、その Task に紐づく単一 Worker（`wkr-7c8d9e0f-1`）・単一 Session（`ssn-2b3c4d5e-1`）担当の `Ticket`（ルート `tickets[]`、`task_id: "tsk-e5f6a7b8-1"`）と最小実行単位の `Job` 列（`tickets[].jobs[]`）を正式作成する。その後、`ssn-2b3c4d5e-1` が `Run` を開始し、確認可能な証拠に基づいて作業完了（`status: "completed"` / `Run.result: "succeeded"`）まで一方向に進める最も基本的なシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **`projects[].tasks[]` とルート `tickets[].jobs[]` の分離と初期状態**：`Task` は `projects[].tasks[]` に配置し（`Task` 内に `tickets` は持たない）、`Ticket` はルート直下の `tickets[]` に配置して `task_id`（`tsk-*`）で親 Task を必須参照する。初期 `status` はすべて `"todo"`（未実行 Job の `runs` は空配列のため省略可）。Ticket は `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、任意フィールド `exclusions` で「その Ticket でやらないこと（対象外・除外事項）」を明記して認識すり合わせ精度を高める（`exclusions` は `Ticket` にのみ配置し、`Job` には置かない）。確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）・作業定義を変更しない。
+- **`project.tasks[]` とルート `tickets[].jobs[]` の分離と初期状態**：`Task` は `project.tasks[]` に配置し（`Task` 内に `tickets` は持たない）、`Ticket` はルート直下の `tickets[]` に配置して `task_id`（`tsk-*`）で親 Task を必須参照する。初期 `status` はすべて `"todo"`（未実行 Job の `runs` は空配列のため省略可）。Ticket は `worker_id`（`wkr-*`）と `session_id`（`ssn-*`）を持ち、任意フィールド `exclusions` で「その Ticket でやらないこと（対象外・除外事項）」を明記して認識すり合わせ精度を高める（`exclusions` は `Ticket` にのみ配置し、`Job` には置かない）。確定後は担当セッション（`worker_id`・`session_id`）と `jobs` 配列（順序固定）・作業定義を変更しない。
 - **Run 開始**：対象 Ticket の `worker_id`・`session_id` と一致する Session が現在 Job の内部フィールド `runs`（`tickets[].jobs[].runs[]`）に初回 `Run`（`run-*`）を追加し、実作業開始と同時に Job・Ticket・`todo` の親 Task を一括で `status: "doing"` に遷移させ、`Run.started` を記録する（実行中のため `result` と `ended` はまだ無い）。実行時は `Ticket.exclusions` に記載された対象外作業を行わない。
 - **完了（completed / succeeded）と `status` / `result` 分離**：TTJ 1.1.0 では「作業工程の完了」を Task・Ticket・Job の `status: "completed"` で表し、Job の業務判定を `Job.result`（例：`"passed"`）、実行試行の成功を `Run.result: "succeeded"`（および `ended` 記録）として明確に分離する。
 
@@ -51,23 +51,21 @@
       "started": "2026-02-01T09:00:00Z"
     }
   ],
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
-          "criteria": [
-            "エンドポイント実装と単体テストが完了し全件合格している"
-          ],
-          "status": "todo",
-          "deadline": "2026-02-05T18:00:00+09:00"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
+        "criteria": [
+          "エンドポイント実装と単体テストが完了し全件合格している"
+        ],
+        "status": "todo",
+        "deadline": "2026-02-05T18:00:00+09:00"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-c9d0e1f2-1",
@@ -108,22 +106,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
-          "criteria": [
-            "エンドポイント実装と単体テストが完了し全件合格している"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
+        "criteria": [
+          "エンドポイント実装と単体テストが完了し全件合格している"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-c9d0e1f2-1",
@@ -166,22 +162,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-1",
-          "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
-          "criteria": [
-            "エンドポイント実装と単体テストが完了し全件合格している"
-          ],
-          "status": "completed"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-1",
+        "objective": "認証トークン検証エンドポイントを実装して公開可能にする",
+        "criteria": [
+          "エンドポイント実装と単体テストが完了し全件合格している"
+        ],
+        "status": "completed"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-c9d0e1f2-1",
@@ -254,16 +248,16 @@
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **Ticket ごとの担当セッション固定と分割**：1つの Ticket に複数 Worker や複数 Session を設定することは禁止されているため、複数 Worker（`wkr-7c8d9e0f-1`, `wkr-7c8d9e0f-2`）が分担する場合は Worker / Session ごとに別 Ticket を作成し、それぞれ不変の `task_id`・`worker_id`・`session_id` を設定する。各 Ticket の `exclusions` に相手側スコープ（やらないこと）を明記することで、並列実行時の変更衝突や重複作業を防ぐ。
-- **チケット単位のファイル分割による排他操作（単一スキーマ・空配列省略）**：ルートで `projects[].tasks[]` と `tickets[].jobs[].runs[]` が分離されており空配列は記載を省略できるため、**100% 同一のルート JSON スキーマ** のまま以下のようにファイルを分割して各 Worker が自分の Ticket ファイルだけを排他更新できる。
-  1. **Task 側のファイル**：`protocol` と `projects`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は省略（`Task` 内にも `tickets` や `jobs` の記載は一切なし）。
-  2. **各 Worker の Ticket ファイル**：`protocol` と `tickets`（自分が担当する Ticket とその `jobs[].runs[]`）のみを記載し、`projects`, `workers`, `sessions` は省略。`task_id` で親 Task に紐づく。
+- **チケット単位のファイル分割による排他操作（単一スキーマ・空配列省略）**：ルートで `project.tasks[]` と `tickets[].jobs[].runs[]` が分離されており空配列は記載を省略できるため、**100% 同一のルート JSON スキーマ** のまま以下のようにファイルを分割して各 Worker が自分の Ticket ファイルだけを排他更新できる。
+  1. **Task 側のファイル**：`protocol` と単一オブジェクト `project`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は省略（`Task` 内にも `tickets` や `jobs` の記載は一切なし）。
+  2. **各 Worker の Ticket ファイル**：`protocol` と `tickets`（自分が担当する Ticket とその `jobs[].runs[]`）のみを記載し、`project`, `workers`, `sessions` は省略。`task_id` で親 Task に紐づく。
 - **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 内の単一スロット `handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
 
 ### サンプル JSON パターン
 
 #### パターン 2-A：チケット単位でファイルを分割して並列・排他操作する場合
 
-1. **Task 側の管理ファイル（`projects[].tasks[]` のみで `tickets` / `jobs` の記載なし）**
+1. **Task 側の管理ファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）**
 
 ```json
 {
@@ -290,22 +284,20 @@
       "started": "2026-02-01T10:00:00Z"
     }
   ],
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-2",
-          "objective": "検索APIと検索UIを実装する",
-          "criteria": [
-            "検索APIエンドポイントと検索画面コンポーネントの双方がテストを通過している"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ]
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-2",
+        "objective": "検索APIと検索UIを実装する",
+        "criteria": [
+          "検索APIエンドポイントと検索画面コンポーネントの双方がテストを通過している"
+        ],
+        "status": "doing"
+      }
+    ]
+  }
 }
 ```
 
@@ -410,22 +402,20 @@
       "started": "2026-02-01T10:00:00Z"
     }
   ],
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-2",
-          "objective": "検索APIと検索UIを実装する",
-          "criteria": [
-            "検索APIエンドポイントと検索画面コンポーネントの双方がテストを通過している"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-2",
+        "objective": "検索APIと検索UIを実装する",
+        "criteria": [
+          "検索APIエンドポイントと検索画面コンポーネントの双方がテストを通過している"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-2a3b4c5d-1",
@@ -505,22 +495,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-3",
-          "objective": "監査ログ用テーブルを追加しマイグレーションを適用する",
-          "criteria": [
-            "確定スキーマによるマイグレーションが正常適用されている"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-3",
+        "objective": "監査ログ用テーブルを追加しマイグレーションを適用する",
+        "criteria": [
+          "確定スキーマによるマイグレーションが正常適用されている"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-3c4d5e6f-1",
@@ -603,22 +591,20 @@
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-3",
-          "objective": "監査ログ用テーブルを追加しマイグレーションを適用する",
-          "criteria": [
-            "確定スキーマによるマイグレーションが正常適用されている"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-3",
+        "objective": "監査ログ用テーブルを追加しマイグレーションを適用する",
+        "criteria": [
+          "確定スキーマによるマイグレーションが正常適用されている"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-3c4d5e6f-2",
@@ -701,22 +687,20 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-4",
-          "objective": "v1.1.0 を本番環境へリリースする",
-          "criteria": [
-            "本番デプロイと疎通確認が完了している"
-          ],
-          "status": "waiting"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-4",
+        "objective": "v1.1.0 を本番環境へリリースする",
+        "criteria": [
+          "本番デプロイと疎通確認が完了している"
+        ],
+        "status": "waiting"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-4d5e6f7a-1",
@@ -758,23 +742,21 @@ Job 実行中に外部システムの応答や承認を待つ計画内待機（`
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-4",
-          "objective": "v1.1.0 を本番環境へリリースする",
-          "criteria": [
-            "本番デプロイと疎通確認が完了している"
-          ],
-          "status": "paused",
-          "resume": "オーナーからリリース凍結解除の指示を受け、かつ変更管理ゲート chg-2026-0201 の承認を確認する"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-4",
+        "objective": "v1.1.0 を本番環境へリリースする",
+        "criteria": [
+          "本番デプロイと疎通確認が完了している"
+        ],
+        "status": "paused",
+        "resume": "オーナーからリリース凍結解除の指示を受け、かつ変更管理ゲート chg-2026-0201 の承認を確認する"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-4d5e6f7a-1",
@@ -926,22 +908,20 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-4",
-          "objective": "v1.1.0 を本番環境へリリースする",
-          "criteria": [
-            "ステージング疎通確認と本番リリースが完了している"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-4",
+        "objective": "v1.1.0 を本番環境へリリースする",
+        "criteria": [
+          "ステージング疎通確認と本番リリースが完了している"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-6f7a8b9c-1",
@@ -1072,7 +1052,7 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
 ## UC-07: Task 所属の揮発性 Handoff による引き継ぎ
 
 ### どのような場面か（シナリオ）
-作業途中の文脈・停止位置・注意点を `Task` 内側の揮発性単一スロット `handoff`（`projects[].tasks[].handoff`）に記録して後続 Session や他メンバーが状況を把握できるようにし、Task 完了時には揮発性 Handoff を破棄・消去して、今後再利用すべき長期知見だけを `Project.knowledge`（`projects[].knowledge[]`）へ昇格させるシナリオ。
+作業途中の文脈・停止位置・注意点を `Task` 内側の揮発性単一スロット `handoff`（`project.tasks[].handoff`）に記録して後続 Session や他メンバーが状況を把握できるようにし、Task 完了時には揮発性 Handoff を破棄・消去して、今後再利用すべき長期知見だけを `Project.knowledge`（`project.knowledge[]`）へ昇格させるシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
 - **Task 内側の揮発性単一スロット**：v1.1.0 では旧 `Ticket.handoffs` を廃止し、`Task` オブジェクトの内部フィールド `handoff` として最大1つの揮発性 `Handoff` スロットを持つ（`Task` の内側に配置されるため `Handoff.task_id` は持たない）。
@@ -1086,34 +1066,32 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-5",
-          "objective": "認証・検索APIのP99レイテンシを50ms以下に改善する",
-          "criteria": [
-            "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-5",
+        "objective": "認証・検索APIのP99レイテンシを50ms以下に改善する",
+        "criteria": [
+          "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
+        ],
+        "status": "doing",
+        "handoff": {
+          "current_ticket_id": "tkt-7a8b9c0d-1",
+          "worker_id": "wkr-7c8d9e0f-1",
+          "session_id": "ssn-2b3c4d5e-1",
+          "current_job_id": "job-7a8b9c0d-2",
+          "context": "TTLを300秒に変更した cache-ttl-v2.yaml を反映済み。現在ベンチマーク計測を実行中。",
+          "stop_position": "job-7a8b9c0d-2 のウォームアップ完了後・本計測ステップ",
+          "notes": [
+            "TTL 600秒ではメモリ使用率が閾値を超えたため300秒を採用した。"
           ],
-          "status": "doing",
-          "handoff": {
-            "current_ticket_id": "tkt-7a8b9c0d-1",
-            "worker_id": "wkr-7c8d9e0f-1",
-            "session_id": "ssn-2b3c4d5e-1",
-            "current_job_id": "job-7a8b9c0d-2",
-            "context": "TTLを300秒に変更した cache-ttl-v2.yaml を反映済み。現在ベンチマーク計測を実行中。",
-            "stop_position": "job-7a8b9c0d-2 のウォームアップ完了後・本計測ステップ",
-            "notes": [
-              "TTL 600秒ではメモリ使用率が閾値を超えたため300秒を採用した。"
-            ],
-            "updated": "2026-02-01T15:10:00Z"
-          }
+          "updated": "2026-02-01T15:10:00Z"
         }
-      ]
-    }
-  ],
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-7a8b9c0d-1",
@@ -1168,30 +1146,28 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "knowledge": [
-        {
-          "id": "cache-ttl-guideline",
-          "status": "active",
-          "content": "APIレスポンスキャッシュの標準TTLは300秒とし、メモリ使用率80%未満を維持する",
-          "basis": "tsk-e5f6a7b8-5 のベンチマーク検証において、TTL 600秒ではメモリ逼迫が発生し、300秒でP99 38msとメモリ安全域を両立できたため。"
-        }
-      ],
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-5",
-          "objective": "認証・検索APIのP99レイテンシを50ms以下に改善する",
-          "criteria": [
-            "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
-          ],
-          "status": "completed"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "knowledge": [
+      {
+        "id": "cache-ttl-guideline",
+        "status": "active",
+        "content": "APIレスポンスキャッシュの標準TTLは300秒とし、メモリ使用率80%未満を維持する",
+        "basis": "tsk-e5f6a7b8-5 のベンチマーク検証において、TTL 600秒ではメモリ逼迫が発生し、300秒でP99 38msとメモリ安全域を両立できたため。"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-5",
+        "objective": "認証・検索APIのP99レイテンシを50ms以下に改善する",
+        "criteria": [
+          "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
+        ],
+        "status": "completed"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-7a8b9c0d-1",
@@ -1267,22 +1243,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-6",
-          "objective": "プレビュー環境を構築して動作確認を完了する",
-          "criteria": [
-            "プレビュー環境のヘルスチェックが成功している"
-          ],
-          "status": "completed"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-6",
+        "objective": "プレビュー環境を構築して動作確認を完了する",
+        "criteria": [
+          "プレビュー環境のヘルスチェックが成功している"
+        ],
+        "status": "completed"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-8b9c0d1e-1",
@@ -1354,22 +1328,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-7",
-          "objective": "旧CSVエクスポート機能を追加する",
-          "criteria": [
-            "CSV出力APIとバッチ処理が稼働している"
-          ],
-          "status": "canceled"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-7",
+        "objective": "旧CSVエクスポート機能を追加する",
+        "criteria": [
+          "CSV出力APIとバッチ処理が稼働している"
+        ],
+        "status": "canceled"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-8b9c0d1e-2",
@@ -1458,22 +1430,20 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-8",
-          "objective": "APIセキュリティ運用規約を策定し承認を得る",
-          "criteria": [
-            "規約文書が作成され、レビュアーの承認（approved）を得ている"
-          ],
-          "status": "doing"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-8",
+        "objective": "APIセキュリティ運用規約を策定し承認を得る",
+        "criteria": [
+          "規約文書が作成され、レビュアーの承認（approved）を得ている"
+        ],
+        "status": "doing"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-9c0d1e2f-1",
@@ -1611,7 +1581,7 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 作成・レビュー差し戻し・修正・再レビューを経て複数の Ticket が作られた長寿命 `Task` が目標を達成して完了する際、終了済み旧 Ticket のアーカイブ・折りたたみ、揮発性 Handoff の消去、および Task 完了判定を行ってクリーンな終了状態にするシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **終了済み旧 Ticket の即時アーカイブ・折りたたみ**：各 Ticket は終了（`completed` / `canceled`）時点で成果（`artifacts`）・結果（`result`）・中止理由（`cancel_reason`）を永続化する。次 Ticket が未作成でも終了済み Ticket は即座にアーカイブ・折りたたみ可能とする（[規格本文](specification.md) §4・§6）。チケット単位でファイルを分割している場合は、終了済み Ticket ファイルをアーカイブ移動し、Task 側のファイルには `projects[].tasks[]` と昇格した `projects[].knowledge[]` のみをクリーンに保持できる。
+- **終了済み旧 Ticket の即時アーカイブ・折りたたみ**：各 Ticket は終了（`completed` / `canceled`）時点で成果（`artifacts`）・結果（`result`）・中止理由（`cancel_reason`）を永続化する。次 Ticket が未作成でも終了済み Ticket は即座にアーカイブ・折りたたみ可能とする（[規格本文](specification.md) §4・§6）。チケット単位でファイルを分割している場合は、終了済み Ticket ファイルをアーカイブ移動し、Task 側のファイルには `project.tasks[]` と昇格した `project.knowledge[]` のみをクリーンに保持できる。
 - **Ticket 肥大化対策と Task 完了判定**：
   - `refs`（`fixes`, `derived_from`, `rerun_of`, `related`）によって「初稿 → 差し戻しレビュー → 修正 → 承認レビュー」の系列を構造化し、終了済み旧 Ticket を折りたたんで管理負荷を抑える。
   - **完了 Ticket 数だけで Task の達成率や完了を決めてはならない**（[規格本文](specification.md) §2・§6）。`task_id` で紐づく全 Ticket が終端状態であり、差し戻しや中止で未達だった必須範囲が後続 Ticket で解決され、`Task.criteria` をすべて満たしていることを確認して `Task.status: "completed"` とする。
@@ -1622,37 +1592,35 @@ Ticket 内の特定の不要になった Job だけを `canceled` にして実�
 ```json
 {
   "protocol": "TTJ/1.1.0",
-  "projects": [
-    {
-      "id": "pj-a1b2c3d4-1",
-      "name": "API基盤開発",
-      "knowledge": [
-        {
-          "id": "security-policy-v0-rule",
-          "status": "supersed",
-          "content": "署名鍵のローテーションは日次バッチで一括反映する",
-          "basis": "初期設計時の暫定運用ルールとして採用していた。"
-        },
-        {
-          "id": "security-policy-immediate-key-rotation",
-          "status": "active",
-          "content": "緊急時の署名鍵ローテーションは即時配信リストへ反映し5分以内に全ゲートウェイへ伝播させる",
-          "basis": "tsk-e5f6a7b8-8 のレビューおよび改訂で合意された新基準。",
-          "supersedes": "security-policy-v0-rule"
-        }
-      ],
-      "tasks": [
-        {
-          "id": "tsk-e5f6a7b8-8",
-          "objective": "APIセキュリティ運用規約を策定し承認を得る",
-          "criteria": [
-            "規約文書が作成され、レビュアーの承認（approved）を得ている"
-          ],
-          "status": "completed"
-        }
-      ]
-    }
-  ],
+  "project": {
+    "id": "pj-a1b2c3d4-1",
+    "name": "API基盤開発",
+    "knowledge": [
+      {
+        "id": "security-policy-v0-rule",
+        "status": "supersed",
+        "content": "署名鍵のローテーションは日次バッチで一括反映する",
+        "basis": "初期設計時の暫定運用ルールとして採用していた。"
+      },
+      {
+        "id": "security-policy-immediate-key-rotation",
+        "status": "active",
+        "content": "緊急時の署名鍵ローテーションは即時配信リストへ反映し5分以内に全ゲートウェイへ伝播させる",
+        "basis": "tsk-e5f6a7b8-8 のレビューおよび改訂で合意された新基準。",
+        "supersedes": "security-policy-v0-rule"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "tsk-e5f6a7b8-8",
+        "objective": "APIセキュリティ運用規約を策定し承認を得る",
+        "criteria": [
+          "規約文書が作成され、レビュアーの承認（approved）を得ている"
+        ],
+        "status": "completed"
+      }
+    ]
+  },
   "tickets": [
     {
       "id": "tkt-9c0d1e2f-1",

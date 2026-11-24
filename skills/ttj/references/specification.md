@@ -10,8 +10,8 @@
 - [定義] **TTJ**：担当や環境が変わっても、作業・申し送り・知識を安全に継続する規格。
   - [任意] 単一主体・複数主体の分担・担当引き継ぎ・長寿命 Task の継続運用に使う。
   - [必須] 必要な情報を一度だけ記録する。
-  - [必須] **Task / Ticket 分離構造の単一 JSON スキーマ**：JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`projects`・`tickets` の5キーのみで構成し、Project / Task 階層は `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`。`Task` の中に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離・統一する。各 `Ticket` は所属する親 Task を `task_id`（`tsk-*`、必須）で参照し、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する（親要素の内側に配置される `Task.project`・`Handoff.task_id` 等の逆参照は持たない）。
-  - [必須] **空配列の省略規則とファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。これにより、100% 同一のルート JSON スキーマのまま、Task 側の管理ファイル（`protocol` と `projects` 等のみを記載し `tickets` は省略）と、チケット単位の分割ファイル（`protocol` と `tickets` のみを記載し `projects` 等は省略）にファイルを分けてチケット単位で排他操作する運用と、1ファイルにまとめる運用の双方を統一的に扱える。
+  - [必須] **Task / Ticket 分離構造の単一 JSON スキーマと配列・単一オブジェクトの原則**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列とし、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は配列にせず単一オブジェクトとする。JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`project`・`tickets` の5キーのみで構成し、Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`。`Task` の中に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離・統一する。各 `Ticket` は所属する親 Task を `task_id`（`tsk-*`、必須）で参照し、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する（親要素の内側に配置される `Task.project`・`Handoff.task_id` 等の逆参照は持たない）。
+  - [必須] **空配列・未記載項目の省略規則とファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。また、単一オブジェクトの `project` も Ticket 分割ファイル等で記載しない場合は省略できる。これにより、100% 同一のルート JSON スキーマのまま、Task 側の管理ファイル（`protocol` と単一オブジェクト `project` 等のみを記載し `tickets` は省略）と、チケット単位の分割ファイル（`protocol` と `tickets` のみを記載し `project` 等は省略）にファイルを分けてチケット単位で排他操作する運用と、1ファイルにまとめる運用の双方を統一的に扱える。
   - [禁止] 不要な分類・専用の型・重複記入・不要な状態機械を増やす。
   - [禁止] 特定の Agent・Bot・オーケストレーター実装への依存を TTJ へ組み込む。
 - [定義] **規格の識別**：`protocol` は JSON 文書の規格名と版を表す。
@@ -40,13 +40,13 @@
   - [定義] 同じ Worker が複数の Session を持て、各 Session を個別に識別できる。
   - [禁止] Session の終了・切断・変更によって既存 Ticket の `worker_id` や `session_id` を書き換える。
 - [定義] **Project**：作業と長期知識を保持する継続的な領域。
-  - [必須] `id`（接頭辞 `pj-`）と意味の分かる `name` で識別する。
+  - [必須] ルートの単一オブジェクト `project` として `id`（接頭辞 `pj-`）と意味の分かる `name` で識別する（任意で `knowledge[]`・`tasks[]` を保持し、Ticket 分割ファイル等で記載しない場合は `project` 自体を省略可）。
   - [例] リポジトリ1つは粒度の目安。
   - [任意] リポジトリなし、または複数リポジトリを含む領域として運用する。
   - [禁止] Task の終了・削除に連動して長期知識を失わせる。
   - [定義] 共通の作業状態や自動完了は規定しない。
 - [定義] **Task**：Project 内の長寿命な成果目標を管理する単位。
-  - [必須] `projects[].tasks[]` の要素として配置され、`id`（接頭辞 `tsk-`）・`objective`・`criteria`（および任意の `status`・`deadline`・`resume`・`handoff`）を持つ（`Project.tasks[]` の内側に配置されるため逆参照の `Task.project` フィールドは持たず、`tickets` はルート直下の `tickets[]` に分離されるため `Task` 内には `tickets` や `jobs` を持たない）。
+  - [必須] `project.tasks[]` の要素として配置され、`id`（接頭辞 `tsk-`）・`objective`・`criteria`（および任意の `status`・`deadline`・`resume`・`handoff`）を持つ（`Project.tasks[]` の内側に配置されるため逆参照の `Task.project` フィールドは持たず、`tickets` はルート直下の `tickets[]` に分離されるため `Task` 内には `tickets` や `jobs` を持たない）。
   - [必須] 単一の Project に属し、目標・達成条件・ルート `tickets[]` のうち `task_id` で当該 Task に紐づく複数 Ticket の管理・結果集約・現在の進捗・ブロッカー・揮発性 Handoff（`handoff`）・最終達成判定を扱う。
   - [任意] 期限がある場合だけ `deadline` に Task の完了期限を書く。
   - [必須] 期限を記載する場合はタイムゾーン付きの ISO 8601 日時を使う。
@@ -80,7 +80,7 @@
   - [任意] 上記7種以外の他レコード（知識・監査記録等）の ID 形式・発行方法・保存先は運用で決める。
   - [禁止] 同じ ID を複数のレコードへ割り当てる、または Project・Task・Ticket・Job・Run・Worker・Session に指定外の ID 形式・接頭辞を使う。
 - [定義] **記入形式**：各階層は単一ルートスキーマの中でそれぞれ必要な情報だけを持つ。
-  - [必須] `projects[].tasks[]`（および `projects[].knowledge[]`・`projects[].tasks[].handoff`）とルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に `task_id` 必須）の分離スキーマに従う（`Task` の内側に `tickets` を置いたり、ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
+  - [必須] 単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`）とルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に `task_id` 必須）の分離スキーマに従う（ルートの `project` を配列 `projects` にしたり、`Task` の内側に `tickets` を置いたり、ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
   - [禁止] 共通化のために全階層へ同じ項目を追加する。
   - [定義] フィールドと記入例およびファイル分割時のサンプルは [JSON参照形式](json-format.md) に、代表的な場面ごとの状態遷移とサンプルパターンは [代表ユースケースとサンプルパターン](use-cases.md) に示す。
 
@@ -336,7 +336,7 @@
 
 ### 9.1. Task 所属の揮発性 Handoff
 
-- [定義] **Handoff**：`Task` オブジェクトの内部フィールド `handoff`（`projects[].tasks[].handoff`：`Handoff | null`、任意・未設定時は省略可）として保持する揮発性の単一スロット（Task ごとに最大1つ）。
+- [定義] **Handoff**：`Task` オブジェクトの内部フィールド `handoff`（`project.tasks[].handoff`：`Handoff | null`、任意・未設定時は省略可）として保持する揮発性の単一スロット（Task ごとに最大1つ）。
   - [必須] `Task` の内側に配置されるため逆参照の `Handoff.task_id` は持たず、内部キーとして状況に応じて `current_ticket_id`（`tkt-*`）・`worker_id`（`wkr-*`）・`session_id`（`ssn-*`）・`current_job_id`（`job-*`）・`context`・`stop_position`・`blockers`・`notes`・`updated` を保持する（`blockers`・`notes` は空配列時は省略可）。
   - [必須] Task への参照権限を持つ複数の Session が同時に閲覧できる。
   - [必須] 閲覧権限と実行権限を厳格に分離し、Handoff を閲覧できることを Ticket の実行権限と同一視しない。
@@ -408,7 +408,7 @@
 - [必須] **準拠**：本書のすべての [必須] と [禁止] を満たす。
   - [必須] 部分適用では未対応範囲を示す。
   - [禁止] JSON や Skill だけで永続化・原子性・排他・外部副作用防止を保証したと称する。
-- [必須] **適合確認**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：接頭辞 `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・`projects[].tasks[]` とルート `tickets[].jobs[].runs[]`（`Ticket.task_id` 必須）の分離スキーマと空配列の省略規則およびファイル分割対応（`Task` 内の `tickets` 保持・逆参照 `Task.project`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
+- [必須] **適合確認**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：接頭辞 `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）・配列と単一オブジェクトの原則に基づく `project.tasks[]`（`project` は単一オブジェクト）とルート `tickets[].jobs[].runs[]`（`Ticket.task_id` 必須）の分離スキーマと省略規則およびファイル分割対応（`Task` 内の `tickets` 保持・逆参照 `Task.project`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）・単一 Owner 原則・Ticket の `worker_id` および `session_id` 固定・Job の `status`/`result` 分離・依存循環拒否（保留/一時障害で保持中の未解決待機辺含む）・同一 Ticket/Session 内の新 Run 再試行・再開不可時の旧 Ticket 中止と `refs` 付き新規 Ticket 起票・揮発性 Handoff の Task 完了時消去と長期知識への昇格・保留解除時の再評価・Worker 非依存性を合わせて検証する。
   - [必須] 全 Job 終端時の Ticket 完了と、Ticket 自身の中止優先を確認する。
   - [必須] 中止 Job を含む Ticket の処理終了や Ticket 完了数と、Task の目標達成を区別する。
   - [必須] 同一 Worker の別 Session 無断実行、閉じた旧 Run 結果からの更新、前の実行が稼働中・停止未確認時の引き継ぎを拒否する。

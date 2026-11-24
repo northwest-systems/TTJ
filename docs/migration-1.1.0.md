@@ -22,7 +22,7 @@ TTJ `1.0.0` から `1.1.0`（`protocol: "TTJ/1.1.0"`）への変更点を「追�
 
 - プロトコル表記：`"TTJ/1.0.0"` → `"TTJ/1.1.0"`
 - ID 形式の統一：重複を避けるため自動採番とし、全7種（`pj-`, `tsk-`, `tkt-`, `job-`, `run-`, `wkr-`, `ssn-`）を `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなし）>` 形式に統一
-- ルートスキーマ構造（`projects[].tasks[]` とルート `tickets[].jobs[].runs[]` の分離）への統一：ルートキーを `protocol`・`workers`・`sessions`・`projects`・`tickets` の5つに統一し、`Task` 内から `tickets` を外してルート直下の `tickets[]`（各 `Ticket` に親 `task_id` 必須、内部に `jobs[].runs[]` を内包）へ分離。空配列省略規則により、単一スキーマのまま1ファイル統合運用とチケット単位のファイル分割・排他操作の双方に対応（`Task.project`・`Handoff.task_id` の逆参照や `Ticket.jobs` の ID 配列／実体分離は廃止）
+- ルートスキーマ構造（`project.tasks[]` とルート `tickets[].jobs[].runs[]` の分離）および配列・単一オブジェクト原則への統一：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列時は省略可）、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は単一オブジェクトとする原則に基づき、ルートキーを `protocol`・`workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つに統一し、`Task` 内から `tickets` を外してルート直下の `tickets[]`（各 `Ticket` に親 `task_id` 必須、内部に `jobs[].runs[]` を内包）へ分離。省略規則により、単一スキーマのまま1ファイル統合運用とチケット単位のファイル分割・排他操作の双方に対応（`Task.project`・`Handoff.task_id` の逆参照や `Ticket.jobs` の ID 配列／実体分離は廃止）
 - 単一 Owner 原則（Project / Task の状態の最終確定者を単一 Owner に固定）
 - Job の単純化（進行状態 `status` と結果 `result` の分離）
 - Run の正本化と `Job` 内側への配置：`Run` を `Job` の内側（`tickets[].jobs[].runs[]`）に配置し、`started` と終了確定時の `result` / `ended` および `wait` を持つ実行試行の正本へ変更
