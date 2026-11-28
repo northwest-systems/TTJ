@@ -2,7 +2,7 @@
 
 本文書は、[規格本文](specification.md) および [JSON参照形式](json-format.md) を実運用へ適用する際に迷いやすい代表的な **10場面（UC-01〜UC-10）** について、**「どのような場面か（シナリオ）」「規格上のポイント（どの状態・フィールドを使うか）」「サンプル JSON パターン」** をまとめた実践リファレンスである。
 
-すべての JSON サンプルは TTJ 1.1.0 の配列・単一オブジェクト原則と単一ルートスキーマ（0〜複数があり得る項目のみ配列とし、1つだけに定まっている項目は単一オブジェクトとする原則に基づき、ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つのみ、Project / Task 階層は `project.tasks[]` および `project.knowledge[]`・`project.tasks[].handoffs`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に完全準拠している。空配列 `[]` および未記載の単一オブジェクト `project` は記載自体を省略できる規則により、1ファイルに `project` と `tickets` を両方記載するパターンと、Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
+すべての JSON サンプルは TTJ 1.1.0 の配列・単一オブジェクト原則と単一ルートスキーマ（0〜複数があり得る項目のみ配列とし、1つだけに定まっている項目は単一オブジェクトとする原則に基づき、ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つのみ、Project / Task 階層は `project.tasks[]` および `project.knowledge[]`・`project.tasks[].handoffs`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と[規格本文の ID 形式](specification.md)に従う。一部の例には、互換読み込みの対象となる旧形式の Worker・Session ID を使用している。空配列 `[]` および未記載の単一オブジェクト `project` は記載自体を省略できる規則により、1ファイルに `project` と `tickets` を両方記載するパターンと、Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
 
 ---
 

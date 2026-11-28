@@ -33,7 +33,7 @@ JSON を作成・編集・検証するときは [JSON 参照形式](references/j
 
 - [必須] **目標と主体確認**：Project・Task・Worker・Session を確認する。
   - [必須] Project の `id`（接頭辞 `pj-`）・`name`、Worker の `id`（接頭辞 `wkr-`）・`name`、Session の `id`（接頭辞 `ssn-`）・`worker_id` で対象と作業主体・実行単位を識別できるようにする。
-  - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の ID は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`、例：`pj-a1b2c3d4-1`・`tsk-e5f6a7b8-1`・`tkt-c9d0e1f2-1`・`job-1a2b3c4d-1`・`run-5e6f7a8b-1`・`wkr-7c8d9e0f-1`・`ssn-2b3c4d5e-1`）に統一する。
+  - [必須] Project・Task・Ticket・Job・Run の ID は `<接頭辞>-<英数字6桁または8桁>-<正の連番>` とする。新規 Worker は `wkr-<固有の英数字9桁>`、新規 Session は `ssn-<Worker ID>-<Worker 内の正の連番>` とする。連番は1始まりで先頭にゼロを付けない。例は `wkr-01234abcd` と `ssn-wkr-01234abcd-10`。既存の Worker・Session ID は保持する。
   - [必須] 既存の作業と採用中（`active`）の知識を先に読み、結果を左右する不足だけを質問する。
   - [禁止] Project をリポジトリに限定する。
 - [必須] **記入**：Task・Ticket・Job すべての `objective` に「達成したいこと」を書く。
@@ -123,5 +123,5 @@ JSON を作成・編集・検証するときは [JSON 参照形式](references/j
   - [必須] 状態は `active`・`supersed` の2値（v1.0.0 の綴りを維持）とし、新規記録は未指定でも `active` にする。
   - [必須] 予定も現在の知識として `active` に記録し、通常は `active` だけを参照し、振り返り・再発障害確認では `supersed` も読む。
   - [必須] 使わなくなった知識は理由を残して `supersed` にし、訂正は `supersedes` 付きの新規記録とする。
-- [必須] **点検**：7種の自動採番 ID 形式（`<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`：`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-`）、配列・単一オブジェクトの原則に基づく `project.tasks[]`（`project` は単一オブジェクト）とルート `tickets[].jobs[].runs[]`（`Ticket.task_id` 必須）の分離スキーマと省略規則およびファイル分割対応（`Task` 内の `tickets` 保持・逆参照 `Task.project`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）、単一 Owner 原則、Ticket の `worker_id`・`session_id` 固定、`status`/`result` 分離、未解決待機辺を含む依存循環禁止、再開不可・差し戻し時の新規 Ticket 起票、揮発性 Handoff の Task 完了時消去と `Project.knowledge` への昇格、禁止事項、Worker 非依存性を確認する。
+- [必須] **点検**：7種の自動採番 ID 形式、配列・単一オブジェクトの原則に基づく `project.tasks[]`（`project` は単一オブジェクト）とルート `tickets[].jobs[].runs[]`（`Ticket.task_id` 必須）の分離スキーマと省略規則およびファイル分割対応（`Task` 内の `tickets` 保持・逆参照 `Task.project`・`Handoff.task_id` および `Ticket.jobs` の ID 配列分離の廃止）、単一 Owner 原則、Ticket の `worker_id`・`session_id` 固定、`status`/`result` 分離、未解決待機辺を含む依存循環禁止、再開不可・差し戻し時の新規 Ticket 起票、揮発性 Handoff の Task 完了時消去と `Project.knowledge` への昇格、禁止事項、Worker 非依存性を確認する。
   - [必須] 計画・実行済みの事実・管理情報・未確認事項を分けて報告する。

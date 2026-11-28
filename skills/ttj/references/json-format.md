@@ -15,7 +15,7 @@
   - [定義] **Ticket 側のファイル（チケット単位の分割ファイル）**：`protocol` と `tickets`（内部に `jobs[].runs[]`）のみを記載し、`project`, `workers`, `sessions` は省略する。各 Ticket は `task_id` で親 Task に紐づく。
   - [定義] **1ファイルにまとめる場合**：同じルートオブジェクト内に単一オブジェクト `project` と配列 `tickets`（および必要に応じて `workers`, `sessions`）を両方記載する。
 - [定義] `protocol` の値は規格名と版を1項目で識別し、同じ文書内の子レコードへの転記は不要。
-- [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
+- [必須] Project・Task・Ticket・Job・Run の ID は `<接頭辞>-<英数字6桁または8桁>-<正の連番>` とする。新規 Worker は `wkr-<固有の英数字9桁>`、新規 Session は `ssn-<Worker ID>-<Worker 内の正の連番>` とする。連番は1始まりで先頭にゼロを付けない。例は `wkr-01234abcd` と `ssn-wkr-01234abcd-10`。既存の Worker・Session ID は保持する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
 - [定義] `criteria` は Task・Job の完了を確認する条件の一覧。各条件は確認対象と合格になる状態が分かり、同じ証拠から一意に判定できる形で書く。
@@ -26,7 +26,7 @@
 
 ## 1. Worker（`workers[]` の要素）
 
-- [必須] `id: string`：Worker を一意に識別する不変の自動採番 ID（`wkr-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
+- [必須] `id: string`：Worker を一意に識別する不変の自動採番 ID（`wkr-<固有の英数字9桁>` 形式。末尾の連番は持たない）。
 - [必須] `name: string`：変更可能な表示名。
 - [禁止] `owner_type` や `human`・`bot`・`agent`・`ai`・`service` 等の種別分類を必須項目として追加する。
 - [定義] 認証情報や実行環境設定は外部環境側で管理する。
@@ -36,7 +36,7 @@
   "protocol": "TTJ/1.1.0",
   "workers": [
     {
-      "id": "wkr-7c8d9e0f-1",
+      "id": "wkr-01234abcd",
       "name": "Alpha"
     }
   ]
@@ -45,8 +45,8 @@
 
 ## 2. Session（`sessions[]` の要素）
 
-- [必須] `id: string`：Session を一意に識別する自動採番 ID（`ssn-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
-- [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。
+- [必須] `id: string`：Session を一意に識別する自動採番 ID（`ssn-<Worker ID>-<Worker 内の連番>` 形式。例は `ssn-wkr-01234abcd-10`）。
+- [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。新形式では Session ID に埋め込まれた Worker ID と一致させる。旧形式の Session はこの欄から所属を解決する。
 - [任意] `started: string`：開始時刻（タイムゾーン付き ISO 8601）。
 - [任意] `ended: string`：終了時刻（終了済みの場合）。
 - [定義] 同じ Worker が複数 Session を持て、各 Session を個別に識別する。
@@ -56,8 +56,8 @@
   "protocol": "TTJ/1.1.0",
   "sessions": [
     {
-      "id": "ssn-2b3c4d5e-1",
-      "worker_id": "wkr-7c8d9e0f-1",
+      "id": "ssn-wkr-01234abcd-10",
+      "worker_id": "wkr-01234abcd",
       "started": "2026-01-01T01:00:00Z"
     }
   ]
