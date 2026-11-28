@@ -2,30 +2,31 @@
 
 - [定義] 以下は項目ごとの記入方法と例であり、ラベルはその行だけに適用する。
 - [必須] 作業規則は [規格本文](specification.md) に従う。
-- [必須] **配列と単一オブジェクトの原則、およびルートスキーマ構造（`project.tasks[]` とルート `tickets[].jobs[].runs[]` の分離スキーマ）**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列 `[]`・1件・複数件すべて許容、空配列時は記載省略可）とし、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は配列にせず単一オブジェクトとする。すべての TTJ JSON 文書は以下の単一ルートスキーマに統一する。ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、ルートの `project` を配列 `projects` にする構造、`Task` の内側に `tickets` をネストする構造、または `Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
+- [必須] **配列と単一オブジェクトの原則、およびルートスキーマ構造（`project.tasks[]` とルート `tickets[].jobs[].runs[]` の分離スキーマ）**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列 `[]`・1件・複数件すべて許容、空配列時は記載省略可）とし、1つだけに定まっている項目（ルートの `project`、`Run.wait`）は配列にせず単一オブジェクトとする。すべての TTJ JSON 文書は以下の単一ルートスキーマに統一する。ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` 等を直接配置する抜粋フラット形式や、ルートの `project` を配列 `projects` にする構造、`Task` の内側に `tickets` をネストする構造、または `Ticket.jobs` を ID 文字列配列にして `Job` 実体を外に出す二重管理は行わない。
   - [必須] **Root オブジェクトのキー（以下の5つのみ。配列はいずれも空配列時は記載省略可、単一オブジェクト `project` も未記載時は省略可）**：
     - `protocol`: `"TTJ/1.1.0"`（必須）
     - `workers`: `array<Worker>`（0〜複数あり得るため配列、空配列時は省略可）
     - `sessions`: `array<Session>`（0〜複数あり得るため配列、空配列時は省略可）
-    - `project`: `Project`（1つに定まっているため単一オブジェクト。Ticket 分割ファイル等で記載しない場合は省略可。内部に `id`, `name`, `knowledge[]`, `tasks[]`（および `tasks[].handoff`）を持ち、`Task` の中に `tickets` は持たない）
+    - `project`: `Project`（1つに定まっているため単一オブジェクト。Ticket 分割ファイル等で記載しない場合は省略可。内部に `id`, `name`, `knowledge[]`, `tasks[]`（および `tasks[].handoffs`）を持ち、`Task` の中に `tickets` は持たない）
     - `tickets`: `array<Ticket>`（0〜複数あり得るため配列、空配列時は省略可。各 `Ticket` は親 Task を指す `task_id` を必須とし、内部に `jobs[].runs[]` を持つ）
-  - [必須] **階層の責務と逆参照の整理**：Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`）で構成し、親要素の内側に置かれる `Task.project`・`Handoff.task_id` 等の逆参照や `Task` 内の `tickets`・`jobs` は持たない。Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離し、各 `Ticket` が必ず `task_id`（`tsk-*`）で親 Task を参照する（`Job` や `Run` は親の内側に置かれるため逆参照を持たない）。
+  - [必須] **階層の責務と逆参照の整理**：Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoffs`）で構成し、親要素の内側に置かれる `Task.project`・`Handoff.task_id` 等の逆参照や `Task` 内の `tickets`・`jobs` は持たない。Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離し、各 `Ticket` が必ず `task_id`（`tsk-*`）で親 Task を参照する（`Job` や `Run` は親の内側に置かれるため逆参照を持たない）。
 - [必須] **省略規則と単一スキーマでのファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。また、単一オブジェクトの `project` も Ticket 分割ファイル等で記載しない場合は省略できる。この規則により、**100% 同一のルート JSON スキーマ** のまま、チケット単位で別ファイルに分けて排他操作する運用と1ファイルにまとめる運用の双方を扱える。
   - [定義] **Task 側のファイル（Project / Task 管理ファイル）**：`protocol` と単一オブジェクト `project`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は空配列として省略するため、`tickets` や `jobs` の記載は一切不要となる。
   - [定義] **Ticket 側のファイル（チケット単位の分割ファイル）**：`protocol` と `tickets`（内部に `jobs[].runs[]`）のみを記載し、`project`, `workers`, `sessions` は省略する。各 Ticket は `task_id` で親 Task に紐づく。
   - [定義] **1ファイルにまとめる場合**：同じルートオブジェクト内に単一オブジェクト `project` と配列 `tickets`（および必要に応じて `workers`, `sessions`）を両方記載する。
 - [定義] `protocol` の値は規格名と版を1項目で識別し、同じ文書内の子レコードへの転記は不要。
-- [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
+- [必須] Project・Task・Ticket・Job・Run の ID は `<接頭辞>-<英数字6桁または8桁>-<正の連番>` とする。新規 Worker は `wkr-<固有の英数字9桁>`、新規 Session は `ssn-<Worker ID>-<Worker 内の正の連番>` とする。連番は1始まりで先頭にゼロを付けない。例は `wkr-01234abcd` と `ssn-wkr-01234abcd-10`。既存の Worker・Session ID は保持する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
-- [定義] `criteria` は Task・Job の完了を確認する条件の一覧。
+- [定義] `criteria` は Task・Job の完了を確認する条件の一覧。各条件は確認対象と合格になる状態が分かり、同じ証拠から一意に判定できる形で書く。
+- [例] 「公開案内の『開催日時』欄に 6月15日 14:00 と表示される」。公開画面を目視して照合できる。
 - [定義] Task・Ticket・Job の `status` は `todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled` の7値。
 - [必須] 新規作成時の作業状態は、未指定でも `todo`。
 - [必須] 更新で省略した項目は既存値を維持し、空にする場合は明示する。
 
 ## 1. Worker（`workers[]` の要素）
 
-- [必須] `id: string`：Worker を一意に識別する不変の自動採番 ID（`wkr-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
+- [必須] `id: string`：Worker を一意に識別する不変の自動採番 ID（`wkr-<固有の英数字9桁>` 形式。末尾の連番は持たない）。
 - [必須] `name: string`：変更可能な表示名。
 - [禁止] `owner_type` や `human`・`bot`・`agent`・`ai`・`service` 等の種別分類を必須項目として追加する。
 - [定義] 認証情報や実行環境設定は外部環境側で管理する。
@@ -35,7 +36,7 @@
   "protocol": "TTJ/1.1.0",
   "workers": [
     {
-      "id": "wkr-7c8d9e0f-1",
+      "id": "wkr-01234abcd",
       "name": "Alpha"
     }
   ]
@@ -44,8 +45,8 @@
 
 ## 2. Session（`sessions[]` の要素）
 
-- [必須] `id: string`：Session を一意に識別する自動採番 ID（`ssn-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
-- [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。
+- [必須] `id: string`：Session を一意に識別する自動採番 ID（`ssn-<Worker ID>-<Worker 内の連番>` 形式。例は `ssn-wkr-01234abcd-10`）。
+- [必須] `worker_id: string`：この Session が属する `Worker.id`（`wkr-*`）。新形式では Session ID に埋め込まれた Worker ID と一致させる。旧形式の Session はこの欄から所属を解決する。
 - [任意] `started: string`：開始時刻（タイムゾーン付き ISO 8601）。
 - [任意] `ended: string`：終了時刻（終了済みの場合）。
 - [定義] 同じ Worker が複数 Session を持て、各 Session を個別に識別する。
@@ -55,8 +56,8 @@
   "protocol": "TTJ/1.1.0",
   "sessions": [
     {
-      "id": "ssn-2b3c4d5e-1",
-      "worker_id": "wkr-7c8d9e0f-1",
+      "id": "ssn-wkr-01234abcd-10",
+      "worker_id": "wkr-01234abcd",
       "started": "2026-01-01T01:00:00Z"
     }
   ]
@@ -85,11 +86,11 @@
 
 - [必須] `id: string`：Task の自動採番 ID（`tsk-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：長寿命の成果目標。
-- [必須] `criteria: array<string>`：Task 全体の完了を確認する条件を1件以上書く。
+- [必須] `criteria: array<string>`：Task 全体の完了を、証拠から一意に判定できる条件を1件以上書く。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。Run を持たない Task の計画内待機にも `waiting` を用いる。
 - [任意] `deadline: string`：期限がある Task だけに完了期限（タイムゾーン付き ISO 8601）を書く。省略時は期限未設定として扱い、期限を過ぎてもそれだけで作業状態は変更しない。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・解除条件が一意に分からない場合に1文で記載する（揮発性 `handoff` への記載を理由に省略しない）。
-- [任意] `handoff: Handoff | null`：Task 所属の揮発性単一スロット（未設定時は省略可）。
+- [任意] `handoffs: array<Handoff>`：Task 所属の揮発性の申し送り一覧（空の場合は省略可）。
 - [定義] `tickets` はルート直下の `tickets[]` に分離されたため、`Task` オブジェクト内には `tickets`（および `jobs`）を持たない。また、`Task` は `Project.tasks[]` の内側に配置されるため、逆参照の `Task.project` フィールドも持たない。
 - [禁止] `Task` 内に `tickets` や `jobs` を持たせる、または期限を Ticket・Job へ重複記入させる。
 - [定義] 修正・再実行により Ticket が増えても、同一 Task（同じ `task_id`）に紐づけて管理する。
@@ -128,9 +129,11 @@
 - [任意] `artifacts: array<string>`：成果物・証拠の参照一覧（空配列時は省略可）。
 - [必須] `cancel_reason: string`（条件付き必須）：Ticket を `status: "canceled"` にする場合は中止理由の記録を必須とする（非 `canceled` 時は省略可）。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・障害解除条件が一意に分からない場合に1文で記載する（揮発性 `handoff` への記載を理由に省略しない）。
-- [任意] `jobs: array<Job>`：`Job` オブジェクトの配列（ID 文字列配列ではなく `Job` 実体を実行順に格納し、内部に `runs: array<Run>` を内包する。確定後は固定、空配列時は省略可）。
+- [任意] `jobs: array<Job>`：`Job` 実体を実行順に格納し、各 Job に `runs` を内包する。空配列時は省略可。レビュー差し戻しの受領時だけ、同じ範囲の修正 Job を 1 回一括で末尾に追加できる。
+- [任意] `review: object`：レビュー依頼を記録した Ticket が持つ。`job_id` は依頼・受領を担当する Job。結果の受領後に `outcome`（`approved` または `changes_requested`）を格納する。
+- [任意] `rereview_of: string`：再レビューの後続 Ticket に、同じ Task の修正元 Ticket ID を設定する。作成後は固定する。
 - [禁止] 旧 `assignee`、複数担当、確定後の `worker_id`・`session_id` 変更、Ticket 独自の `criteria`、旧 `Ticket.handoffs`、`Task` 内への `tickets` ネスト、および `Ticket.jobs` を ID 文字列配列にする実体分離。
-- [必須] Ticket と全 Job の定義は正式作成時に一括確定する。
+- [必須] Ticket と既定の Job の定義は正式作成時に一括確定する。
 
 ### 5.1. ファイル分割する場合のサンプル（Task ファイルと Ticket ファイルの分離）
 
@@ -265,7 +268,7 @@
 
 - [必須] `id: string`：Job の自動採番 ID（`job-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：達成したい目標。
-- [必須] `criteria: array<string>`：Job の完了可否を確認可能な証拠で判断できる条件を1件以上書く。
+- [必須] `criteria: array<string>`：Job の完了可否を、証拠から一意に判定できる条件を1件以上書く。
 - [任意] `instructions: string`：目標だけでは手順が伝わらない場合だけ補う（v1.0.0 の項目名を維持）。
 - [任意] `status: string`：進行状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。未指定時は `todo`）。
 - [任意] `result: string`：`status` と分離された確認結果・業務判定（例：`passed`・`approved`・`changes_requested`・`failed`・`interrupted`・`error` 等）。
@@ -523,7 +526,7 @@
 
 ## 9. Run（`tickets[].jobs[].runs[]` の要素）
 
-- [定義] `Run` は Job の1回の実行試行を記録する正本。各 `Job` オブジェクトの内部フィールド `runs`（未実行等の空配列時は `[]` または記載省略）として保持し、実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
+- [定義] `Run` は Job に属するコマンドの実行試行を任意で記録する正本。各 `Job` オブジェクトの内部フィールド `runs`（未実行等の空配列時は `[]` または記載省略）として保持し、実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（および確認できれば `ended`）を記録する。
 - [禁止] `Run` を `Job` の外に配置する、または `Run` 内に外出し用の冗長な逆参照を持たせる。
 - [必須] `id: string`：実行試行を識別する自動採番 ID（`run-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `started: string`：実作業開始時刻（ISO 8601）。
@@ -608,10 +611,12 @@
 }
 ```
 
-## 10. Handoff（`project.tasks[].handoff`：Task 所属の揮発性単一スロット）
+## 10. Handoff（`project.tasks[].handoffs` の要素）
 
-- [定義] `handoff` は `Task` オブジェクト内（`project.tasks[].handoff`）に最大1つ持つ揮発性の引き継ぎ・状況スロット（`Handoff | null`、任意・未設定時は省略可）。`Task` の内側に配置されるため逆参照の `Handoff.task_id` は持たない。Task 完了時に消去し、恒久的な知見のみ `Project.knowledge` へ昇格させる。
+- [定義] `handoffs` は Task の複数の申し送りを保持する配列。Task 完了時に消去する。旧形式の `handoff` オブジェクトも1件として読み取れる。
+- [必須] 再レビューへの Handoff では `current_ticket_id` に修正元 Ticket を指定する。`review` に `pr`、修正後の `commit`、`findings`（各指摘の `finding`、`response`、`verification`）、`next_check` を記録する。
 - [任意] `current_ticket_id: string | null`：現在対象または直近の Ticket ID（`tkt-*`）。
+- [任意] `received_by_ticket_id: string`：再レビューの申し送りを受領した後続 Ticket ID。
 - [任意] `worker_id: string | null`：対象 Ticket の `Worker.id`（`wkr-*`）。
 - [任意] `session_id: string | null`：対象 Ticket を担当する `Session.id`（`ssn-*`）。
 - [任意] `current_job_id: string | null`：現在 Job の ID（`job-*`）。
@@ -621,7 +626,7 @@
 - [任意] `notes: array<string>`：補足情報（空配列時は省略可）。
 - [任意] `updated: string`：最終更新時刻（ISO 8601）。
 - [禁止] Handoff を正式履歴・成果物・再開条件の正本とする、閲覧権限を実行権と同一視する、Handoff にコマンド実行機能を持たせる。
-- [禁止] Handoff が単一スロットであることを理由に、Task 内の無関係な Ticket を直列化する。
+- [禁止] Handoff を理由に、Task 内の無関係な Ticket を直列化する。
 
 ```json
 {
@@ -637,7 +642,7 @@
           "日時・会場・申込方法が正しい案内文が確定している"
         ],
         "status": "doing",
-        "handoff": {
+        "handoffs": [{
           "current_ticket_id": "tkt-c9d0e1f2-3",
           "worker_id": "wkr-7c8d9e0f-1",
           "session_id": "ssn-2b3c4d5e-2",
@@ -648,7 +653,7 @@
             "最新ドラフトは drafts/invitation-v2.md に保存済み。"
           ],
           "updated": "2026-01-01T03:10:00Z"
-        }
+        }]
       }
     ]
   }
