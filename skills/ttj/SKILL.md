@@ -7,13 +7,27 @@ metadata:
 
 # TTJ
 
-- [必須] **適用**：[規格本文](references/specification.md) を正本とし、[JSON参照形式](references/json-format.md) で記入項目を、[代表ユースケースとサンプルパターン](references/use-cases.md) で場面別の状態遷移と JSON パターンを確認する。
+- [必須] **適用**：この節の共通ルールと、依頼に該当する節を読む。詳細や判断が必要な場合は [規格本文](references/specification.md) の該当節を正本とする。
   - [禁止] Worker 種別（人間・Bot・AI 等）で業務ロジックや状態遷移を分岐させる、または `owner_type` を必須にする。
   - [禁止] 特定の Agent・Bot・オーケストレーターへの依存を TTJ の規則へ持ち込む。
   - [必須] ラベルはその行だけに適用し、配下の項目へ継承しない。
   - [必須] JSON を読み書きする場合はルートの `protocol` で規格名と版を確認し、出力には `"TTJ/1.1.0"` を付ける。
-  - [必須] JSON は「0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容、空配列時は記載省略可）とし、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は配列にせず単一オブジェクト（記載しない場合は省略可）とする」原則に従う。ルートを `protocol`・`workers`・`sessions`・`project`・`tickets` の5キーのみとし、Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`。`Task` 内に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に親 Task を示す `task_id` 必須）に統一する（逆参照の `Task.project`・`Handoff.task_id` や、`Ticket.jobs` の ID 配列／実体分離は廃止）。これにより同一スキーマのまま、Task 側のファイル（`protocol` と `project` 等のみ、`tickets` 省略）と Ticket 側のファイル（`protocol` と `tickets` のみ、`project` 等省略）に分割してチケット単位で排他操作することも、1ファイルに同居させることもできる。
+  - [必須] JSON は「0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列（空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容、空配列時は記載省略可）とし、1つだけに定まっている項目（ルートの `project`、`Run.wait`）は配列にせず単一オブジェクト（記載しない場合は省略可）とする」原則に従う。ルートを `protocol`・`workers`・`sessions`・`project`・`tickets` の5キーのみとし、Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoffs`。`Task` 内に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に親 Task を示す `task_id` 必須）に統一する（逆参照の `Task.project`・`Handoff.task_id` や、`Ticket.jobs` の ID 配列／実体分離は廃止）。これにより同一スキーマのまま、Task 側のファイル（`protocol` と `project` 等のみ、`tickets` 省略）と Ticket 側のファイル（`protocol` と `tickets` のみ、`project` 等省略）に分割してチケット単位で排他操作することも、1ファイルに同居させることもできる。
   - [禁止] 同じ文書の子レコードへ版情報を転記する。
+
+## 依頼に応じた参照先
+
+この表から該当する行を選び、そこで示す節だけを確認する。複数の操作がある場合は、関係する節を追加で読む。
+
+| 依頼 | このスキルの節 | 規格本文で詳細を調べる範囲 |
+| --- | --- | --- |
+| 作業の起票、担当や範囲の確認 | 計画 | §2–4 |
+| 依存、状態変更、終了の判定 | 実行と終了 | §5–7 |
+| レビュー、差し戻し、再レビュー | 計画のレビュー規則、Handoff と長期知識 | §4、§9.1 |
+| コマンド実行の記録、停止、再試行 | 実行と終了、停止・再試行・再開不可時の新規 Ticket 引き継ぎ | §8 |
+| 申し送り、知識の記録や参照 | Handoff と長期知識 | §9 |
+
+JSON を作成・編集・検証するときは [JSON 参照形式](references/json-format.md) の対象レコードの節を読む。具体例が必要なときは [利用例](references/use-cases.md) の該当ケースを選ぶ。
 
 ## 計画
 
@@ -32,12 +46,15 @@ metadata:
   - [任意] 手順が不足する場合だけ Job の `instructions` を補う。
   - [禁止] Job に複雑なワークフロー構造・子 Job・待機制御構造・独立 `Request` オブジェクト・種別分類を追加する。
   - [禁止] 同じ目標・条件・結果を別の欄へ転記する。
-- [必須] **正式作成**：Ticket と全 Job を一括確定する。
+- [必須] **正式作成**：Ticket と当初の Job を一括確定する。
   - [必須] Job 列で Ticket の目標を達成できる計画か確認する。
   - [任意] 正式作成前の Draft や Ticket テンプレートを編集する。
-  - [必須] 初期 `status` を `todo` にし、確定後は担当セッション（`worker_id`・`session_id`）と Job 列および作業定義を変更しない。
+  - [必須] 初期 `status` を `todo` にし、確定後は担当セッション（`worker_id`・`session_id`）と作業定義を固定する。Job 列はレビュー差し戻し時の一括末尾追加だけを認める。
   - [必須] Ticket 増加への対策（テンプレート・標準 Job 列・後続 Ticket 生成支援・成果物/中止理由参照・系列表示と終了折りたたみ・Task 進捗集約と現在 Handoff 表示）を運用・実装に備える（具体的な形式や UI は選べる）。
   - [禁止] 修正・再実行・再レビューによる Ticket 増加を理由に新しい Task を増殖させる。
+- [必須] **レビュー**：1 Ticket・1 Session で依頼、結果受領、同じ完了条件内の修正・検証までを扱う。初回承認なら Ticket の処理を終える。
+  - [必須] 差し戻しの修正 Job は末尾に1回でまとめる。同じ受領の再送は重複させず、別の2回目は拒否する。
+  - [必須] 再レビューは同じ Task の別 Session の後続 Ticket で、修正元の Handoff を確認して最初に依頼する。
 - [任意] **実行依存と情報共有参照**：`depends` と `refs` を明確に区別して記録する。
   - [任意] 先に `completed` である必要がある前提 Ticket だけを `depends` に指定する。
   - [必須] `depends` と非終端 Ticket・Job が保持するすべての未解決 `Run.wait` を合わせた完了依存グラフに循環がないことを確認する（解消済み・解除済み待機は履歴に保持しつつ辺から外す）。
@@ -56,7 +73,8 @@ metadata:
   - [禁止] 同じ Worker であることを理由に、対象 Ticket の `session_id` と異なる別 Session による無断実行を許可する。
   - [禁止] `Ticket.exclusions` に記載された対象外・除外事項の作業を行う。
   - [必須] 同一 Ticket・同一 Session 内の通常再試行および（Job 単独中止後の）後続 Job 開始では、前の Run を閉鎖した上で停止確認または安全条件を確認してから新しい `Run` を開始する（残存副作用の疑いがあれば停止確認・復旧まで開始禁止）。
-- [必須] **Run 記録**：各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（`tickets[].jobs[].runs[]`：未実行等の空配列時は `[]` または記載省略）に、Job の1回の実行試行の正本として `Run`（`id`: `run-*`, `started`, 終了時の `ended` / `result`, `waiting` 時の `wait`）を記録する。
+- [任意] **コマンドの Run 記録**：各 `Job` オブジェクトの内部フィールド `runs: [ ... ]`（`tickets[].jobs[].runs[]`：未実行等の空配列時は `[]` または記載省略）に、コマンドの実行試行の正本として `Run`（`id`: `run-*`, `started`, 終了時の `ended` / `result`, `waiting` 時の `wait`）を記録する。
+  - [必須] Job 内の通算回数に一律の上限を設けない。担当 Session は Run なしでも状態を変更できる。
   - [禁止] `Run` を `Job` の外に配置する、または親参照を重複記載する。
   - [禁止] 同じ Ticket の別 Job を同時実行する、複数の Run を同時に稼働させる、または同じ試行の再送を二重登録する。
   - [必須] Run では実作業開始時刻 `started` を必須記録する。実行中は `result`（および `ended`）を持たず、終了確定時に `result`（および確認できれば `ended`）を必須記録し、終了時点で当該 `Run.id` を閉じる。
@@ -97,7 +115,7 @@ metadata:
 
 ## Handoff と長期知識
 
-- [必須] **揮発性 Handoff**：`handoff` は `Task` オブジェクト内（`project.tasks[].handoff`）の揮発性単一スロットとして扱い（逆参照の `task_id` は持たない）、作業途中の文脈・停止位置・ブロッカーを共有する。Task 完了時には揮発性 Handoff を消去し、恒久的な知見のみを `Project.knowledge` へ昇格させる。
+- [必須] **揮発性 Handoff**：`handoffs` は `Task` オブジェクト内（`project.tasks[].handoffs`）の揮発性の申し送り配列として扱い（逆参照の `task_id` は持たない）、作業途中の文脈・停止位置・ブロッカーを共有する。Task 完了時には揮発性 Handoff を消去し、恒久的な知見のみを `Project.knowledge` へ昇格させる。
   - [必須] Task 参照権限を持つ複数 Session による同時閲覧を許可し、閲覧権限と実行権限を厳格に分離する。
   - [禁止] Handoff を正式履歴・成果物・再開条件の正本にする、Handoff にコマンド実行機能を持たせる、または Handoff によって無関係な Ticket を直列化する。
   - [必須] Handoff が消失・破棄されても Task・Ticket・Job・中止理由・Artifact・正本 `resume`・Run・管理履歴が失われず、正本から再開判断と再生成ができる構成を保つ。

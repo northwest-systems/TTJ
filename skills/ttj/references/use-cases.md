@@ -2,7 +2,7 @@
 
 本文書は、[規格本文](specification.md) および [JSON参照形式](json-format.md) を実運用へ適用する際に迷いやすい代表的な **10場面（UC-01〜UC-10）** について、**「どのような場面か（シナリオ）」「規格上のポイント（どの状態・フィールドを使うか）」「サンプル JSON パターン」** をまとめた実践リファレンスである。
 
-すべての JSON サンプルは TTJ 1.1.0 の配列・単一オブジェクト原則と単一ルートスキーマ（0〜複数があり得る項目のみ配列とし、1つだけに定まっている項目は単一オブジェクトとする原則に基づき、ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つのみ、Project / Task 階層は `project.tasks[]` および `project.knowledge[]`・`project.tasks[].handoff`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に完全準拠している。空配列 `[]` および未記載の単一オブジェクト `project` は記載自体を省略できる規則により、1ファイルに `project` と `tickets` を両方記載するパターンと、Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
+すべての JSON サンプルは TTJ 1.1.0 の配列・単一オブジェクト原則と単一ルートスキーマ（0〜複数があり得る項目のみ配列とし、1つだけに定まっている項目は単一オブジェクトとする原則に基づき、ルートキーは `protocol: "TTJ/1.1.0"` と `workers`・`sessions`・`project`（単一オブジェクト）・`tickets` の5つのみ、Project / Task 階層は `project.tasks[]` および `project.knowledge[]`・`project.tasks[].handoffs`、Ticket 以下の階層はルート直下の `tickets[].jobs[].runs[]` で各 `Ticket` に親 `task_id` 必須）と7種の自動採番 ID 形式（`pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` に続く `<接頭辞>-<英数字6桁または8桁>-<ゼロ埋めなしインクリメント>`）に完全準拠している。空配列 `[]` および未記載の単一オブジェクト `project` は記載自体を省略できる規則により、1ファイルに `project` と `tickets` を両方記載するパターンと、Task 側のファイル（`project.tasks[]` のみで `tickets` / `jobs` の記載なし）と Ticket 側のファイル（`tickets[].jobs[].runs[]` のみで `task_id` 付き）に分割して排他操作するパターンの双方を100%同一スキーマで表現できる。
 
 ---
 
@@ -251,7 +251,7 @@
 - **チケット単位のファイル分割による排他操作（単一スキーマ・空配列省略）**：ルートで `project.tasks[]` と `tickets[].jobs[].runs[]` が分離されており空配列は記載を省略できるため、**100% 同一のルート JSON スキーマ** のまま以下のようにファイルを分割して各 Worker が自分の Ticket ファイルだけを排他更新できる。
   1. **Task 側のファイル**：`protocol` と単一オブジェクト `project`（必要に応じて `workers`, `sessions`）のみを記載し、`tickets` は省略（`Task` 内にも `tickets` や `jobs` の記載は一切なし）。
   2. **各 Worker の Ticket ファイル**：`protocol` と `tickets`（自分が担当する Ticket とその `jobs[].runs[]`）のみを記載し、`project`, `workers`, `sessions` は省略。`task_id` で親 Task に紐づく。
-- **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 内の単一スロット `handoff` が一方の Ticket 文脈を表示していたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
+- **並列実行の非阻害**：一方の Ticket が `waiting` や `blocked` になったり、Task 内に別 Ticket の申し送りが残っていたりしても、無関係な独立 Ticket の開始・並行実行を遮ったり直列化したりしてはならない（[規格本文](specification.md) §6・§8.2・§9.1・禁止事項 #16）。
 
 ### サンプル JSON パターン
 
@@ -1052,16 +1052,18 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
 ## UC-07: Task 所属の揮発性 Handoff による引き継ぎ
 
 ### どのような場面か（シナリオ）
-作業途中の文脈・停止位置・注意点を `Task` 内側の揮発性単一スロット `handoff`（`project.tasks[].handoff`）に記録して後続 Session や他メンバーが状況を把握できるようにし、Task 完了時には揮発性 Handoff を破棄・消去して、今後再利用すべき長期知見だけを `Project.knowledge`（`project.knowledge[]`）へ昇格させるシナリオ。
+作業途中の文脈・停止位置・注意点を `Task` 内側の揮発性の申し送り配列 `handoffs`（`project.tasks[].handoffs`）に記録して後続 Session や他メンバーが状況を把握できるようにし、Task 完了時には揮発性 Handoff を破棄・消去して、今後再利用すべき長期知見だけを `Project.knowledge`（`project.knowledge[]`）へ昇格させるシナリオ。
 
 ### 規格上のポイント（どの状態・フィールドを使うか）
-- **Task 内側の揮発性単一スロット**：v1.1.0 では旧 `Ticket.handoffs` を廃止し、`Task` オブジェクトの内部フィールド `handoff` として最大1つの揮発性 `Handoff` スロットを持つ（`Task` の内側に配置されるため `Handoff.task_id` は持たない）。
+- **Task 内側の揮発性申し送り一覧**：`Task.handoffs` に複数の申し送りを保持する（`Task` の内側に配置されるため `Handoff.task_id` は持たない）。
 - **閲覧権限と実行権限の分離**：Handoff は Task 参照権限を持つ複数 Session から閲覧できるが、Handoff を閲覧できることは Ticket の実行権限を意味しない（禁止事項 #11）。
 - **正本保存の原則と Task 完了時の揮発・消去**：再開に必須の条件（`resume`, `Run.wait`, `cancel_reason`, `artifacts`）は必ず永続正本側に保存し、Handoff を正式履歴の正本にしてはならない（禁止事項 #15）。Task 完了時に `handoff` スロットを消去しても正式履歴は一切失われず、再利用する恒久知見のみを選別して `Project.knowledge`（`status: "active"`）へ記録する。
 
 ### サンプル JSON パターン
 
-#### パターン 7-A：作業進行中の Task 揮発性 `handoff` スロットと永続正本
+レビューで差し戻された場合は、同じ Ticket の末尾に範囲内の修正と検証の Job をまとめて追加する。修正と検証を終えたら、修正元 Ticket の PR・コミット・各指摘への対応と検証結果・次の確認点を `Task.handoffs[]` の1件として残す。同じ Task に別の受け渡し待ちがあれば、別の要素として保持する。後続 Ticket は `rereview_of` で修正元を指定し、別 Session の最初の作業操作で再レビューを依頼する。そのとき、対応する要素にだけ `received_by_ticket_id` を記録する。
+
+#### パターン 7-A：作業進行中の Task の揮発性 `handoffs`と永続正本
 
 ```json
 {
@@ -1077,7 +1079,7 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
           "ベンチマーク計測でP99レイテンシが50ms以下であることが確認されている"
         ],
         "status": "doing",
-        "handoff": {
+        "handoffs": [{
           "current_ticket_id": "tkt-7a8b9c0d-1",
           "worker_id": "wkr-7c8d9e0f-1",
           "session_id": "ssn-2b3c4d5e-1",
@@ -1088,7 +1090,7 @@ Job の 1 回目の実行試行（`run-5a6b7c8d-1`）が一時的な通信エラ
             "TTL 600秒ではメモリ使用率が閾値を超えたため300秒を採用した。"
           ],
           "updated": "2026-02-01T15:10:00Z"
-        }
+        }]
       }
     ]
   },

@@ -10,7 +10,7 @@
 - [定義] **TTJ**：担当や環境が変わっても、作業・申し送り・知識を安全に継続する規格。
   - [任意] 単一主体・複数主体の分担・担当引き継ぎ・長寿命 Task の継続運用に使う。
   - [必須] 必要な情報を一度だけ記録する。
-  - [必須] **Task / Ticket 分離構造の単一 JSON スキーマと配列・単一オブジェクトの原則**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列とし、1つだけに定まっている項目（ルートの `project`、`Task.handoff`、`Run.wait`）は配列にせず単一オブジェクトとする。JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`project`・`tickets` の5キーのみで構成し、Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`。`Task` の中に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離・統一する。各 `Ticket` は所属する親 Task を `task_id`（`tsk-*`、必須）で参照し、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する（親要素の内側に配置される `Task.project`・`Handoff.task_id` 等の逆参照は持たない）。
+  - [必須] **Task / Ticket 分離構造の単一 JSON スキーマと配列・単一オブジェクトの原則**：0〜複数があり得る項目（`workers`, `sessions`, `knowledge`, `tasks`, `tickets`, `jobs`, `runs` 等）のみ配列とし、1つだけに定まっている項目（ルートの `project`、`Run.wait`）は配列にせず単一オブジェクトとする。JSON 文書のルートオブジェクトは `protocol`（`"TTJ/1.1.0"`、必須）・`workers`・`sessions`・`project`・`tickets` の5キーのみで構成し、Project / Task 階層は単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoffs`。`Task` の中に `tickets` は持たない）、Ticket 以下の作業階層はルート直下の `tickets[].jobs[].runs[]` に分離・統一する。各 `Ticket` は所属する親 Task を `task_id`（`tsk-*`、必須）で参照し、`Ticket.jobs` には ID 文字列配列ではなく `Job` オブジェクトの実体を実行順に格納する（親要素の内側に配置される `Task.project`・`Handoff.task_id` 等の逆参照は持たない）。
   - [必須] **空配列・未記載項目の省略規則とファイル分割**：すべての配列フィールドは、空配列 `[]`・1要素 `[ {...} ]`・複数要素 `[ {...}, {...} ]` のいずれも許容し、空配列 `[]` の場合はそのフィールドの記載自体を省略できる（省略時は空配列 `[]` として扱う）。また、単一オブジェクトの `project` も Ticket 分割ファイル等で記載しない場合は省略できる。これにより、100% 同一のルート JSON スキーマのまま、Task 側の管理ファイル（`protocol` と単一オブジェクト `project` 等のみを記載し `tickets` は省略）と、チケット単位の分割ファイル（`protocol` と `tickets` のみを記載し `project` 等は省略）にファイルを分けてチケット単位で排他操作する運用と、1ファイルにまとめる運用の双方を統一的に扱える。
   - [禁止] 不要な分類・専用の型・重複記入・不要な状態機械を増やす。
   - [禁止] 特定の Agent・Bot・オーケストレーター実装への依存を TTJ へ組み込む。
@@ -80,7 +80,7 @@
   - [任意] 上記7種以外の他レコード（知識・監査記録等）の ID 形式・発行方法・保存先は運用で決める。
   - [禁止] 同じ ID を複数のレコードへ割り当てる、または Project・Task・Ticket・Job・Run・Worker・Session に指定外の ID 形式・接頭辞を使う。
 - [定義] **記入形式**：各階層は単一ルートスキーマの中でそれぞれ必要な情報だけを持つ。
-  - [必須] 単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoff`）とルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に `task_id` 必須）の分離スキーマに従う（ルートの `project` を配列 `projects` にしたり、`Task` の内側に `tickets` を置いたり、ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
+  - [必須] 単一オブジェクト `project` 配下の `project.tasks[]`（および `project.knowledge[]`・`project.tasks[].handoffs`）とルート直下の `tickets[].jobs[].runs[]`（各 `Ticket` に `task_id` 必須）の分離スキーマに従う（ルートの `project` を配列 `projects` にしたり、`Task` の内側に `tickets` を置いたり、ルート直下に `tasks`・`jobs`・`runs`・`handoff`・`knowledge` を置いたり、`Ticket.jobs` を ID 文字列配列にして実体を外に出したりしない）。
   - [禁止] 共通化のために全階層へ同じ項目を追加する。
   - [定義] フィールドと記入例およびファイル分割時のサンプルは [JSON参照形式](json-format.md) に、代表的な場面ごとの状態遷移とサンプルパターンは [代表ユースケースとサンプルパターン](use-cases.md) に示す。
 
@@ -108,19 +108,22 @@
 
 ## 4. 固定計画と Ticket 増加への対応
 
-- [必須] **正式作成**：Ticket と全 Job の定義を原子的に確定する。
+- [必須] **正式作成**：Ticket と当初の Job の定義を原子的に確定する。
   - [必須] `Ticket.jobs` に `Job` オブジェクトを実行順に格納する。
   - [必須] Job 列の結果で Ticket の `objective` を達成できることを確認する。
   - [任意] 正式作成前の Draft やテンプレートを編集する。
-- [禁止] **確定後の変更**：Ticket 確定後に担当セッション（`worker_id`・`session_id`）、Job 列、および作業定義を変更しない。
-  - [禁止] Job の追加・削除・移動・並べ替え、`objective`・`exclusions`・`criteria`・`instructions` の実質変更、完了済み Job への巻き戻し・再入力。
+- [禁止] **確定後の変更**：Ticket 確定後に担当セッション（`worker_id`・`session_id`）と作業定義を変更しない。着手後の目的・完了条件・対象外を固定する。
+  - [禁止] Job の削除・移動・並べ替え、`objective`・`exclusions`・`criteria`・`instructions` の実質変更、完了済み Job への巻き戻し・再入力。
   - [任意] 状態・結果・成果物参照・中止理由・管理記録を更新する。
-- [必須] **追加・修正・再実行**：修正・再実行・再レビュー・再開不可時の引き継ぎ・想定外の作業は通常の新 Ticket として同一 Task 配下に作成する。
+- [必須] **レビュー境界**：1 Ticket は固定の 1 Session で、1 回のレビュー依頼、結果受領、同じ完了条件に収まる修正と検証を扱う。初回承認ならその Ticket の処理を終える。Ticket の処理終了と Task の成果達成は別に確定する。
+  - [必須] 差し戻し受領と同時に、必要な修正 Job を Ticket の末尾へ一括追加できる。追加は Ticket につき 1 回まで。同じ受領の再送には元の結果を返し、別の 2 回目は Core が拒否する。これが確定後に Job を追加できる唯一の経路となる。
+  - [必須] 再レビューは同じ Task の後続 Ticket に引き継ぎ、新しい Session の最初の作業操作として依頼する。修正の検証後に PR、修正後コミット、各指摘への対応と検証結果、次に確認する点を Task の Handoff に記録する。
+- [必須] **追加・再実行**：範囲外の指摘は採用する場合に別 Ticket とする。再実行・再開不可時の引き継ぎ・想定外の作業も同一 Task 配下の新 Ticket として扱う。
   - [禁止] 終端 Task へ新 Ticket を追加する。
   - [禁止] 修正・再実行を理由に新しい Task を増殖させる。
   - [推奨] Ticket の Job 数や作業量に上限を設ける。
 - [定義] **Ticket 増加への対策**：修正・再実行・再レビュー・引き継ぎによる Ticket 増加を許容しつつ、Worker 種別を問わず起票と管理の負荷を最小化するため、準拠する実装・運用は次の機能を備える。
-  - [必須] **Ticket テンプレート**：確定前は編集可能とし、確定後は Job 列を固定する。
+  - [必須] **Ticket テンプレート**：確定前は編集可能とし、確定後の Job 列にはレビュー差し戻し時の一括末尾追加だけを認める。
   - [必須] **標準 Job 列**：反復する工程を再利用可能な標準定義として提供する。
   - [必須] **後続 Ticket 生成支援**：前 Ticket の成果物・結果・中止理由を引き継いだ新 Ticket 起票を支援する。
   - [必須] **前 Ticket の成果物参照と中止理由参照**：`refs`・`artifacts`・`cancel_reason` により重複作業と文脈断絶を防ぐ。
@@ -186,6 +189,7 @@
   - [禁止] 定義外の状態・遷移、および対象 Ticket の担当外 Session や閉じた `Run.id` からの状態遷移。
   - [定義] 同じ状態での説明・履歴更新は状態遷移に含めない。
 - [必須] **実行操作の認可**：
+  - [必須] **Run を使わない状態変更**：担当 Session は、有効な Run がない場合も、同じ状態遷移・順序・完了判定のガードで Job の状態を変更できる。
   - [必須] **Run 開始操作**：実行 Session が対象 Ticket の `worker_id`（`wkr-*`）および `session_id`（`ssn-*`）と一致する適格 Session であり、対象現在 Job、開始状態ガード（対象 Ticket/Job が `todo` または `doing`、前提 `depends` 全 `completed`、親 Task が `paused`・終端でない）、および同一 Ticket で他に未終了の有効な `Run` が存在しないことを検証して新しい `Run`（`run-*`）を開始する。
   - [必須] **Run の実行更新・結果確定操作**：対象 Ticket の `worker_id`・`session_id` と一致する Session であり、対象現在 Job で現在稼働中の有効な `Run.id` であることを照合する。閉じた旧 `Run.id` や別 Session からの更新は拒否する。
 - [必須] **管理・評価・証拠取り込み操作の認可**：すべての経路で認可主体の検証・終端状態（`completed`/`canceled`）の復活禁止・監査記録（操作主体・時刻・理由・対象・変更前後）を必須適用する。
@@ -289,7 +293,7 @@
 
 ### 8.1. Run（実行試行の正本）
 
-- [定義] **Run**：Job の1回の実行試行（Execution / Attempt に相当）を記録する正本。
+- [定義] **Run**：Job に属するコマンドの実行試行を任意で記録する正本。Job 内の通算回数に一律の上限は設けない。
   - [必須] `Run` は `Job` にかかる実行試行であるため、`Job` の外に出さず、各 `Job` オブジェクトの内部フィールド `runs`（`tickets[].jobs[].runs[]`：未実行等の空配列時は `[]` または記載省略）として保持する。
   - [必須] `id`（接頭辞 `run-`）と `started`（実作業開始時刻 ISO 8601）を必須記録する。
   - [必須] Run は実行中であれば `result`（および `ended`）がまだ無く、終了確定時に `result`（`succeeded`・`failed`・`canceled`・`interrupted`・`error` 等）を必須記録し、終了時刻を確認できる場合は `ended` も記録する。
@@ -297,7 +301,7 @@
   - [必須] 同一 Ticket で同時に稼働する有効な実行試行（`Run`）は最大1つとする。
   - [必須] 正常終了・異常終了・Job 単独中止・Ticket 中止により Run が終了確定した時点でその `Run.id` を即座に閉じ、閉じた `Run.id` からの後着結果・業務状態更新・Handoff 更新を拒否する。
   - [定義] 独立した `Execution` や `Attempt` オブジェクトを別途設けず、`Run` を実行試行の正本として統一する。
-  - [必須] すべての作業主体による実行を同じ `Run` 形式で記録する。
+  - [必須] Run を記録するときは、作業主体の種類を問わず同じ形式を使う。
 - [必須] **待機・実行制御情報**：待機中の制御情報（待機対象の参照 `target`、解除条件 `condition`、待機開始時刻 `since`、再開位置 `resume_point`、タイムアウト `timeout`、および解消・解除時の `resolved` 時刻）は Job 直下に複雑構造として追加せず、各 Job 内の `Run.wait` で保持する。
   - [必須] `waiting` 解除後は現在の未完了 Job のみから一方向に続行し、閉じた旧 `Run.id` からの状態更新を拒否する。
   - [必須] 別 Ticket の結果を待つ場合も、第7節の完了依存グラフ（`depends` と非終端の未解決 `Run.wait`）に循環が存在しないことを保証する。
@@ -317,7 +321,7 @@
   - [禁止] 計画された再試行・タイムアウト処理が残る間、時間超過だけで `blocked` にする。
   - [禁止] 監視の再接続や同一操作の再送だけで、別の `Run` として二重登録する。
 - [任意] **並列実行と優先度**：資源競合を制御しつつ、独立した別 Ticket を並列実行する。
-  - [禁止] 同一 Task に属することや Handoff が単一スロットであることを理由に、無関係な Ticket の並列実行を遮る・直列化する。
+  - [禁止] 同一 Task に属することを理由に、無関係な Ticket の並列実行を遮る・直列化する。
   - [任意] `priority` を開始順の判断材料にする。
   - [禁止] 低い優先度だけで `paused` にする。
 
@@ -336,7 +340,9 @@
 
 ### 9.1. Task 所属の揮発性 Handoff
 
-- [定義] **Handoff**：`Task` オブジェクトの内部フィールド `handoff`（`project.tasks[].handoff`：`Handoff | null`、任意・未設定時は省略可）として保持する揮発性の単一スロット（Task ごとに最大1つ）。
+- [定義] **Handoff**：`Task.handoffs`（`Handoff[]`、空の場合は省略可）に保持する揮発性の申し送り。受け渡し前の複数件や、異なる作業スコープの複数件を同じ Task に保持できる。
+  - [必須] 再レビューの申し送りは修正元 Ticket ごとに保持する。後続 Ticket が再レビューを依頼したときに、対応する1件だけに受領先 Ticket ID を記録する。
+  - [互換] 旧形式の `Task.handoff` は1件の申し送りとして読み取る。
   - [必須] `Task` の内側に配置されるため逆参照の `Handoff.task_id` は持たず、内部キーとして状況に応じて `current_ticket_id`（`tkt-*`）・`worker_id`（`wkr-*`）・`session_id`（`ssn-*`）・`current_job_id`（`job-*`）・`context`・`stop_position`・`blockers`・`notes`・`updated` を保持する（`blockers`・`notes` は空配列時は省略可）。
   - [必須] Task への参照権限を持つ複数の Session が同時に閲覧できる。
   - [必須] 閲覧権限と実行権限を厳格に分離し、Handoff を閲覧できることを Ticket の実行権限と同一視しない。
@@ -380,7 +386,7 @@
 - [禁止] 5. Job に複雑なワークフロー構造を追加する。
 - [禁止] 6. Job に個別担当を設定する。
 - [禁止] 7. Ticket に複数担当を設定する、または途中で Ticket の担当（`worker_id`・`session_id`）を変更する。
-- [禁止] 8. Ticket 確定後に Job 列を変更する。
+- [禁止] 8. §4 のレビュー差し戻し受領による一括末尾追加以外で、確定済み Ticket の Job 列を変更する。
 - [禁止] 9. 終了済み Ticket を再開する。
 - [禁止] 10. 循環する完了依存を許す。
 - [禁止] 11. Handoff の閲覧権限を実行権と同一視する。
