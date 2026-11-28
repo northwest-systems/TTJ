@@ -18,7 +18,8 @@
 - [必須] 重複を避けるため、Project・Task・Ticket・Job・Run・Worker・Session（全7種）の `id` は自動採番とし、それぞれ `pj-`・`tsk-`・`tkt-`・`job-`・`run-`・`wkr-`・`ssn-` の接頭辞を用いた `<接頭辞>-<英数字6桁または8桁>-<インクリメント（ゼロ埋めなしの1始まり整数: 1, 2, 3...）>` 形式（正規表現：`^(pj|tsk|tkt|job|run|wkr|ssn)-[A-Za-z0-9]{6}([A-Za-z0-9]{2})?-[1-9][0-9]*$`）に統一する。
 - [例] ID・名称・時刻・成果物参照はすべて架空の値。
 - [定義] `objective` は Task・Ticket・Job すべてで「何を達成したいか」を表す。
-- [定義] `criteria` は Task・Job の完了を確認する条件の一覧。
+- [定義] `criteria` は Task・Job の完了を確認する条件の一覧。各条件は確認対象と合格になる状態が分かり、同じ証拠から一意に判定できる形で書く。
+- [例] 「公開案内の『開催日時』欄に 6月15日 14:00 と表示される」。公開画面を目視して照合できる。
 - [定義] Task・Ticket・Job の `status` は `todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled` の7値。
 - [必須] 新規作成時の作業状態は、未指定でも `todo`。
 - [必須] 更新で省略した項目は既存値を維持し、空にする場合は明示する。
@@ -85,7 +86,7 @@
 
 - [必須] `id: string`：Task の自動採番 ID（`tsk-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：長寿命の成果目標。
-- [必須] `criteria: array<string>`：Task 全体の完了を確認する条件を1件以上書く。
+- [必須] `criteria: array<string>`：Task 全体の完了を、証拠から一意に判定できる条件を1件以上書く。
 - [任意] `status: string`：作業状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。新規作成時の未指定は `todo`）。Run を持たない Task の計画内待機にも `waiting` を用いる。
 - [任意] `deadline: string`：期限がある Task だけに完了期限（タイムゾーン付き ISO 8601）を書く。省略時は期限未設定として扱い、期限を過ぎてもそれだけで作業状態は変更しない。
 - [任意] `resume: string`：永続正本（`depends`・`Run.wait`・管理履歴）から再開・解除条件が一意に分からない場合に1文で記載する（揮発性 `handoff` への記載を理由に省略しない）。
@@ -267,7 +268,7 @@
 
 - [必須] `id: string`：Job の自動採番 ID（`job-<英数字6桁または8桁>-<1, 2, 3...>` 形式）。
 - [必須] `objective: string`：達成したい目標。
-- [必須] `criteria: array<string>`：Job の完了可否を確認可能な証拠で判断できる条件を1件以上書く。
+- [必須] `criteria: array<string>`：Job の完了可否を、証拠から一意に判定できる条件を1件以上書く。
 - [任意] `instructions: string`：目標だけでは手順が伝わらない場合だけ補う（v1.0.0 の項目名を維持）。
 - [任意] `status: string`：進行状態（`todo`・`doing`・`waiting`・`paused`・`blocked`・`completed`・`canceled`。未指定時は `todo`）。
 - [任意] `result: string`：`status` と分離された確認結果・業務判定（例：`passed`・`approved`・`changes_requested`・`failed`・`interrupted`・`error` 等）。
